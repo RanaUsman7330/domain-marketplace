@@ -1,0 +1,125 @@
+'use client'
+import Link from 'next/link'
+import { usePathname } from 'next/navigation'
+import { useAuth } from '@/contexts/AuthContext'
+import { useRouter } from 'next/navigation'
+
+const navigation = [
+  { name: 'Dashboard', href: '/dashboard', icon: '📊' },
+  { name: 'Profile', href: '/dashboard/profile', icon: '👤' },
+  { name: 'My Domains', href: '/dashboard/my-domains', icon: '🌐' },
+  { name: 'Cart', href: '/cart', icon: '🛒' },
+  { name: 'Watchlist', href: '/watchlist', icon: '❤️' },
+]
+
+export default function DashboardLayout({
+  children,
+}: {
+  children: React.ReactNode
+}) {
+  const pathname = usePathname()
+  const { logout } = useAuth()
+  const router = useRouter()
+
+  const handleSignOut = () => {
+    logout()
+    router.push('/')
+  }
+
+  return (
+    <div className="min-h-screen bg-gray-50">
+      {/* Header */}
+      <header className="bg-white shadow-sm border-b">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex justify-between items-center h-16">
+            <div className="flex items-center">
+              <Link href="/" className="text-xl font-bold text-blue-600">
+                DomainHub
+              </Link>
+            </div>
+            <div className="flex items-center space-x-4">
+              <Link href="/" className="text-gray-600 hover:text-gray-900">
+                Home
+              </Link>
+              <button
+                onClick={handleSignOut}
+                className="text-gray-600 hover:text-gray-900"
+              >
+                Sign Out
+              </button>
+            </div>
+          </div>
+        </div>
+      </header>
+
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <div className="flex gap-8">
+          {/* Sidebar */}
+          <div className="w-64 flex-shrink-0">
+            <nav className="bg-white rounded-lg shadow p-4">
+              <ul className="space-y-2">
+                {navigation.map((item) => (
+                  <li key={item.name}>
+                    <Link
+                      href={item.href}
+                      className={`flex items-center space-x-3 px-3 py-2 rounded-md text-sm font-medium transition-colors
+                        ${pathname === item.href || pathname.startsWith(item.href + '/')
+                          ? 'bg-blue-100 text-blue-700'
+                          : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
+                        }`}
+                    >
+                      <span>{item.icon}</span>
+                      <span>{item.name}</span>
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            </nav>
+          </div>
+
+          {/* Main Content */}
+          <div className="flex-1">
+            {children}
+          </div>
+        </div>
+      </div>
+
+      {/* Footer */}
+      <footer className="bg-gray-800 text-white mt-16">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
+            <div>
+              <h3 className="text-lg font-semibold mb-4">DomainHub</h3>
+              <p className="text-gray-400">Your trusted marketplace for premium domains.</p>
+            </div>
+            <div>
+              <h4 className="text-md font-semibold mb-4">Quick Links</h4>
+              <ul className="space-y-2 text-gray-400">
+                <li><Link href="/domains">Browse Domains</Link></li>
+                <li><Link href="/how-it-works">How It Works</Link></li>
+                <li><Link href="/contact">Contact Us</Link></li>
+              </ul>
+            </div>
+            <div>
+              <h4 className="text-md font-semibold mb-4">Support</h4>
+              <ul className="space-y-2 text-gray-400">
+                <li><Link href="/help">Help Center</Link></li>
+                <li><Link href="/faq">FAQ</Link></li>
+              </ul>
+            </div>
+            <div>
+              <h4 className="text-md font-semibold mb-4">Legal</h4>
+              <ul className="space-y-2 text-gray-400">
+                <li><Link href="/terms">Terms of Service</Link></li>
+                <li><Link href="/privacy">Privacy Policy</Link></li>
+              </ul>
+            </div>
+          </div>
+          <div className="border-t border-gray-700 mt-8 pt-8 text-center text-gray-400">
+            <p>&copy; 2024 DomainHub. All rights reserved.</p>
+          </div>
+        </div>
+      </footer>
+    </div>
+  )
+}
