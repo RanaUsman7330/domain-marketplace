@@ -1,564 +1,169 @@
-'use client'
-import { useState, useEffect } from 'react'
+'use client';
 
-interface SEOSettings {
-  id: number
-  page: string
-  title: string
-  description: string
-  keywords: string
-  canonicalUrl: string
-  ogTitle: string
-  ogDescription: string
-  ogImage: string
-  twitterCard: string
-  twitterTitle: string
-  twitterDescription: string
-  twitterImage: string
-  structuredData: string
-  robots: string
-  priority: number
-  lastModified: string
+import { useState, useEffect } from 'react';
+import Link from 'next/link';
+
+interface SeoSetting {
+  id: number;
+  page: string;
+  title: string;
+  description: string;
+  keywords: string;
+  robots: string;
 }
 
-export default function AdminSEOPage() {
-  const [seoSettings, setSeoSettings] = useState<SEOSettings[]>([])
-  const [loading, setLoading] = useState(true)
-  const [searchTerm, setSearchTerm] = useState('')
-  const [editingSetting, setEditingSetting] = useState<SEOSettings | null>(null)
-  const [activeTab, setActiveTab] = useState('pages')
+export default function SeoPage() {
+  const [seoSettings, setSeoSettings] = useState<SeoSetting[]>([]);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [editingSetting, setEditingSetting] = useState<SeoSetting | null>(null);
+  const [formData, setFormData] = useState({ page: '', title: '', description: '', keywords: '', robots: 'index,follow' });
+  const [sitemapUrl, setSitemapUrl] = useState('');
+  const [robotsContent, setRobotsContent] = useState('');
 
+  // Fetch SEO settings
   useEffect(() => {
-    loadSEOSettings()
-  }, [])
+    fetchSeoSettings();
+  }, []);
 
-  const loadSEOSettings = async () => {
-    try {
-      const token = localStorage.getItem('adminToken')
-      const response = await fetch('/api/admin/seo', {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        }
-      })
-      
-      const data = await response.json()
-      if (data.success) {
-        setSeoSettings(data.settings || [])
-      }
-    } catch (error) {
-      console.error('Error loading SEO settings:', error)
-    } finally {
-      setLoading(false)
+  const fetchSeoSettings = async () => {
+    const res = await fetch('/api/admin/seo');
+    if (res.ok) {
+      const data = await res.json();
+      setSeoSettings(data);
     }
-  }
+  };
 
-  const handleUpdateSEO = async (formData: FormData) => {
-    if (!editingSetting) return
+  // Handle form submit (add/edit)
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const method = editingSetting ? 'PUT' : 'POST';
+    const body = editingSetting ? { ...formData, id: editingSetting.id } : formData;
 
-    try {
-      const token = localStorage.getItem('adminToken')
-      const response = await fetch(`/api/admin/seo/${editingSetting.id}`, {
-        method: 'PUT',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          title: formData.get('title'),
-          description: formData.get('description'),
-          keywords: formData.get('keywords'),
-          canonicalUrl: formData.get('canonicalUrl'),
-          ogTitle: formData.get('ogTitle'),
-          ogDescription: formData.get('ogDescription'),
-          ogImage: formData.get('ogImage'),
-          twitterCard: formData.get('twitterCard'),
-          twitterTitle: formData.get('twitterTitle'),
-          twitterDescription: formData.get('twitterDescription'),
-          twitterImage: formData.get('twitterImage'),
-          structuredData: formData.get('structuredData'),
-          robots: formData.get('robots'),
-          priority: parseInt(formData.get('priority') as string)
-        })
-      })
-      
-      const data = await response.json()
-      if (data.success) {
-        loadSEOSettings()
-        setEditingSetting(null)
-      }
-    } catch (error) {
-      console.error('Error updating SEO setting:', error)
+    const res = await fetch('/api/admin/seo', {
+      method,
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+
+    if (res.ok) {
+      fetchSeoSettings();
+      setIsModalOpen(false);
+      setEditingSetting(null);
+      setFormData({ page: '', title: '', description: '', keywords: '', robots: 'index,follow' });
     }
-  }
+  };
 
+  // Delete setting
+  const handleDelete = async (id: number) => {
+    if (confirm('Delete this SEO setting?')) {
+      const res = await fetch('/api/admin/seo', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id }),
+      });
+      if (res.ok) fetchSeoSettings();
+    }
+  };
+
+  // Generate Sitemap
   const generateSitemap = async () => {
-    try {
-      const token = localStorage.getItem('adminToken')
-      const response = await fetch('/api/admin/seo/sitemap', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        }
-      })
-      
-      const data = await response.json()
-      if (data.success) {
-        alert('Sitemap generated successfully!')
-      }
-    } catch (error) {
-      console.error('Error generating sitemap:', error)
+    const res = await fetch('/api/sitemap.xml');
+    if (res.ok) {
+      const url = `${window.location.origin}/sitemap.xml`;
+      setSitemapUrl(url);
+      alert('Sitemap generated! URL: ' + url);
     }
-  }
+  };
 
-  const generateRobotsTxt = async () => {
-    try {
-      const token = localStorage.getItem('adminToken')
-      const response = await fetch('/api/admin/seo/robots-txt', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        }
-      })
-      
-      const data = await response.json()
-      if (data.success) {
-        alert('Robots.txt generated successfully!')
-      }
-    } catch (error) {
-      console.error('Error generating robots.txt:', error)
-    }
-  }
+  // Edit Robots.txt
+  const updateRobots = async () => {
+    const res = await fetch('/api/robots.txt', {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain' },
+      body: robotsContent,
+    });
+    if (res.ok) alert('Robots.txt updated!');
+  };
 
-  const filteredSettings = seoSettings.filter(setting =>
-    setting.page.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    setting.title.toLowerCase().includes(searchTerm.toLowerCase())
-  )
-
-  const pageSettings = seoSettings.filter(setting => setting.page !== 'sitemap' && setting.page !== 'robots.txt')
-  const sitemapSettings = seoSettings.filter(setting => setting.page === 'sitemap')
-  const robotsSettings = seoSettings.filter(setting => setting.page === 'robots.txt')
+  // Fetch current robots.txt
+  useEffect(() => {
+    fetch('/api/robots.txt').then(res => res.text()).then(setRobotsContent);
+  }, []);
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex justify-between items-center">
-        <h1 className="text-2xl font-bold text-gray-900">SEO Management</h1>
-        <div className="flex space-x-3">
-          <button
-            onClick={generateSitemap}
-            className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700"
-          >
-            Generate Sitemap
-          </button>
-          <button
-            onClick={generateRobotsTxt}
-            className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700"
-          >
-            Generate Robots.txt
-          </button>
-        </div>
+    <div className="p-6">
+      <h1 className="text-2xl font-bold mb-4">SEO Management</h1>
+
+      {/* Buttons */}
+      <div className="mb-4 space-x-2">
+        <button onClick={() => setIsModalOpen(true)} className="bg-blue-500 text-white px-4 py-2 rounded">Add SEO Setting</button>
+        <button onClick={generateSitemap} className="bg-green-500 text-white px-4 py-2 rounded">Generate Sitemap</button>
+        <Link href="/admin" className="bg-gray-500 text-white px-4 py-2 rounded">Back to Admin</Link>
       </div>
 
-      {/* Navigation Tabs */}
-      <div className="bg-white rounded-lg shadow">
-        <div className="border-b border-gray-200">
-          <nav className="flex space-x-8 px-6" aria-label="Tabs">
-            {[
-              { id: 'pages', name: 'Page SEO' },
-              { id: 'sitemap', name: 'Sitemap' },
-              { id: 'robots', name: 'Robots.txt' }
-            ].map((tab) => (
-              <button
-                key={tab.id}
-                onClick={() => setActiveTab(tab.id)}
-                className={`py-4 px-1 border-b-2 font-medium text-sm ${
-                  activeTab === tab.id
-                    ? 'border-blue-500 text-blue-600'
-                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                }`}
-              >
-                {tab.name}
-              </button>
-            ))}
-          </nav>
-        </div>
+      {/* Sitemap URL */}
+      {sitemapUrl && <p className="mb-4">Sitemap URL: <a href={sitemapUrl} target="_blank" className="text-blue-600">{sitemapUrl}</a></p>}
 
-        <div className="p-6">
-          {/* Page SEO Tab */}
-          {activeTab === 'pages' && (
-            <div className="space-y-6">
-              {/* Search */}
-              <div className="flex justify-between items-center">
-                <input
-                  type="text"
-                  placeholder="Search pages..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 w-64"
-                />
-                <div className="text-sm text-gray-600">
-                  {filteredSettings.length} pages found
-                </div>
-              </div>
-
-              {/* SEO Settings Table */}
-              <div className="overflow-x-auto">
-                <table className="min-w-full divide-y divide-gray-200">
-                  <thead className="bg-gray-50">
-                    <tr>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Page
-                      </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Title
-                      </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Description
-                      </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Priority
-                      </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Actions
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody className="bg-white divide-y divide-gray-200">
-                    {loading ? (
-                      <tr>
-                        <td colSpan={5} className="px-6 py-4 text-center text-gray-500">
-                          Loading SEO settings...
-                        </td>
-                      </tr>
-                    ) : filteredSettings.length === 0 ? (
-                      <tr>
-                        <td colSpan={5} className="px-6 py-4 text-center text-gray-500">
-                          No SEO settings found
-                        </td>
-                      </tr>
-                    ) : (
-                      filteredSettings.map((setting) => (
-                        <tr key={setting.id}>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                            {setting.page}
-                          </td>
-                          <td className="px-6 py-4 text-sm text-gray-900 max-w-xs truncate">
-                            {setting.title}
-                          </td>
-                          <td className="px-6 py-4 text-sm text-gray-500 max-w-xs truncate">
-                            {setting.description}
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                            {setting.priority}
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                            <button
-                              onClick={() => setEditingSetting(setting)}
-                              className="text-blue-600 hover:text-blue-900"
-                            >
-                              Edit
-                            </button>
-                          </td>
-                        </tr>
-                      ))
-                    )}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          )}
-
-          {/* Sitemap Tab */}
-          {activeTab === 'sitemap' && (
-            <div className="space-y-6">
-              <div className="bg-gray-50 p-4 rounded-lg">
-                <h3 className="text-lg font-medium text-gray-900 mb-2">XML Sitemap</h3>
-                <p className="text-gray-600 mb-4">
-                  Generate and manage your XML sitemap to help search engines discover your pages.
-                </p>
-                <div className="space-y-2">
-                  <p className="text-sm text-gray-500">
-                    <strong>URL:</strong> /sitemap.xml
-                  </p>
-                  <p className="text-sm text-gray-500">
-                    <strong>Last Generated:</strong> {sitemapSettings[0]?.lastModified || 'Never'}
-                  </p>
-                </div>
-              </div>
-              
-              {sitemapSettings.map((setting) => (
-                <div key={setting.id} className="border rounded-lg p-4">
-                  <div className="flex justify-between items-center mb-4">
-                    <h4 className="font-medium text-gray-900">Sitemap Settings</h4>
-                    <button
-                      onClick={() => setEditingSetting(setting)}
-                      className="text-blue-600 hover:text-blue-900 text-sm"
-                    >
-                      Edit
-                    </button>
-                  </div>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
-                    <div>
-                      <strong>Priority:</strong> {setting.priority}
-                    </div>
-                    <div>
-                      <strong>Change Frequency:</strong> {setting.ogDescription || 'daily'}
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-
-          {/* Robots.txt Tab */}
-          {activeTab === 'robots' && (
-            <div className="space-y-6">
-              <div className="bg-gray-50 p-4 rounded-lg">
-                <h3 className="text-lg font-medium text-gray-900 mb-2">Robots.txt</h3>
-                <p className="text-gray-600 mb-4">
-                  Control how search engines crawl and index your website.
-                </p>
-                <div className="space-y-2">
-                  <p className="text-sm text-gray-500">
-                    <strong>URL:</strong> /robots.txt
-                  </p>
-                  <p className="text-sm text-gray-500">
-                    <strong>Last Generated:</strong> {robotsSettings[0]?.lastModified || 'Never'}
-                  </p>
-                </div>
-              </div>
-              
-              {robotsSettings.map((setting) => (
-                <div key={setting.id} className="border rounded-lg p-4">
-                  <div className="flex justify-between items-center mb-4">
-                    <h4 className="font-medium text-gray-900">Robots.txt Content</h4>
-                    <button
-                      onClick={() => setEditingSetting(setting)}
-                      className="text-blue-600 hover:text-blue-900 text-sm"
-                    >
-                      Edit
-                    </button>
-                  </div>
-                  <pre className="bg-gray-100 p-3 rounded text-sm overflow-x-auto">
-                    {setting.structuredData || 'User-agent: *\nAllow: /'}
-                  </pre>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
+      {/* Robots.txt Editor */}
+      <div className="mb-4">
+        <h2 className="text-lg font-semibold">Robots.txt</h2>
+        <textarea
+          value={robotsContent}
+          onChange={(e) => setRobotsContent(e.target.value)}
+          className="w-full h-32 border p-2"
+          placeholder="User-agent: *&#10;Disallow: /admin/"
+        />
+        <button onClick={updateRobots} className="bg-yellow-500 text-white px-4 py-2 rounded mt-2">Update Robots.txt</button>
       </div>
 
-      {/* Edit Modal */}
-      {editingSetting && (
-        <div className="fixed inset-0 bg-gray-500 bg-opacity-75 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 max-w-4xl w-full mx-4 max-h-[90vh] overflow-y-auto">
-            <h2 className="text-lg font-medium mb-4">
-              Edit SEO Settings - {editingSetting.page}
-            </h2>
-            <form onSubmit={(e) => {
-              e.preventDefault()
-              handleUpdateSEO(new FormData(e.currentTarget))
-            }}>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                {/* Basic SEO */}
-                <div className="space-y-4">
-                  <h3 className="text-md font-medium text-gray-900">Basic SEO</h3>
-                  
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700">Page Title</label>
-                    <input
-                      type="text"
-                      name="title"
-                      defaultValue={editingSetting.title}
-                      className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2"
-                      maxLength={60}
-                    />
-                    <p className="text-xs text-gray-500 mt-1">Recommended: 50-60 characters</p>
-                  </div>
+      {/* SEO Settings Table */}
+      <table className="w-full border-collapse border border-gray-300">
+        <thead>
+          <tr className="bg-gray-100">
+            <th className="border p-2">Page</th>
+            <th className="border p-2">Title</th>
+            <th className="border p-2">Description</th>
+            <th className="border p-2">Keywords</th>
+            <th className="border p-2">Robots</th>
+            <th className="border p-2">Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          {seoSettings.map((setting) => (
+            <tr key={setting.id}>
+              <td className="border p-2">{setting.page}</td>
+              <td className="border p-2">{setting.title}</td>
+              <td className="border p-2">{setting.description}</td>
+              <td className="border p-2">{setting.keywords}</td>
+              <td className="border p-2">{setting.robots}</td>
+              <td className="border p-2 space-x-2">
+                <button onClick={() => { setEditingSetting(setting); setFormData(setting); setIsModalOpen(true); }} className="bg-blue-500 text-white px-2 py-1 rounded">Edit</button>
+                <button onClick={() => handleDelete(setting.id)} className="bg-red-500 text-white px-2 py-1 rounded">Delete</button>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
 
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700">Meta Description</label>
-                    <textarea
-                      name="description"
-                      defaultValue={editingSetting.description}
-                      rows={3}
-                      className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2"
-                      maxLength={160}
-                    />
-                    <p className="text-xs text-gray-500 mt-1">Recommended: 150-160 characters</p>
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700">Keywords</label>
-                    <input
-                      type="text"
-                      name="keywords"
-                      defaultValue={editingSetting.keywords}
-                      className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2"
-                      placeholder="keyword1, keyword2, keyword3"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700">Canonical URL</label>
-                    <input
-                      type="url"
-                      name="canonicalUrl"
-                      defaultValue={editingSetting.canonicalUrl}
-                      className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700">Robots</label>
-                    <select
-                      name="robots"
-                      defaultValue={editingSetting.robots}
-                      className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2"
-                    >
-                      <option value="index, follow">Index, Follow</option>
-                      <option value="noindex, follow">Noindex, Follow</option>
-                      <option value="index, nofollow">Index, Nofollow</option>
-                      <option value="noindex, nofollow">Noindex, Nofollow</option>
-                    </select>
-                  </div>
-                </div>
-
-                {/* Open Graph */}
-                <div className="space-y-4">
-                  <h3 className="text-md font-medium text-gray-900">Open Graph</h3>
-                  
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700">OG Title</label>
-                    <input
-                      type="text"
-                      name="ogTitle"
-                      defaultValue={editingSetting.ogTitle}
-                      className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700">OG Description</label>
-                    <textarea
-                      name="ogDescription"
-                      defaultValue={editingSetting.ogDescription}
-                      rows={3}
-                      className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700">OG Image URL</label>
-                    <input
-                      type="url"
-                      name="ogImage"
-                      defaultValue={editingSetting.ogImage}
-                      className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2"
-                    />
-                  </div>
-                </div>
-
-                {/* Twitter Card */}
-                <div className="space-y-4">
-                  <h3 className="text-md font-medium text-gray-900">Twitter Card</h3>
-                  
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700">Twitter Card Type</label>
-                    <select
-                      name="twitterCard"
-                      defaultValue={editingSetting.twitterCard}
-                      className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2"
-                    >
-                      <option value="summary">Summary</option>
-                      <option value="summary_large_image">Summary Large Image</option>
-                    </select>
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700">Twitter Title</label>
-                    <input
-                      type="text"
-                      name="twitterTitle"
-                      defaultValue={editingSetting.twitterTitle}
-                      className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700">Twitter Description</label>
-                    <textarea
-                      name="twitterDescription"
-                      defaultValue={editingSetting.twitterDescription}
-                      rows={3}
-                      className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700">Twitter Image URL</label>
-                    <input
-                      type="url"
-                      name="twitterImage"
-                      defaultValue={editingSetting.twitterImage}
-                      className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2"
-                    />
-                  </div>
-                </div>
-
-                {/* Advanced */}
-                <div className="space-y-4">
-                  <h3 className="text-md font-medium text-gray-900">Advanced</h3>
-                  
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700">Priority (0.0 - 1.0)</label>
-                    <input
-                      type="number"
-                      name="priority"
-                      defaultValue={editingSetting.priority}
-                      min="0"
-                      max="1"
-                      step="0.1"
-                      className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700">Structured Data (JSON-LD)</label>
-                    <textarea
-                      name="structuredData"
-                      defaultValue={editingSetting.structuredData}
-                      rows={6}
-                      className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 font-mono text-xs"
-                      placeholder='{"@context": "https://schema.org", "@type": "WebPage", ...}'
-                    />
-                  </div>
-                </div>
-              </div>
-
-              <div className="mt-6 flex justify-end space-x-3">
-                <button
-                  type="button"
-                  onClick={() => setEditingSetting(null)}
-                  className="px-4 py-2 text-gray-700 border border-gray-300 rounded-md hover:bg-gray-50"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
-                >
-                  Save Changes
-                </button>
+      {/* Modal for Add/Edit */}
+      {isModalOpen && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center">
+          <div className="bg-white p-6 rounded w-96">
+            <h2 className="text-lg font-bold mb-4">{editingSetting ? 'Edit' : 'Add'} SEO Setting</h2>
+            <form onSubmit={handleSubmit}>
+              <input type="text" placeholder="Page (e.g., /)" value={formData.page} onChange={(e) => setFormData({ ...formData, page: e.target.value })} className="w-full mb-2 p-2 border" required />
+              <input type="text" placeholder="Title" value={formData.title} onChange={(e) => setFormData({ ...formData, title: e.target.value })} className="w-full mb-2 p-2 border" required />
+              <textarea placeholder="Description" value={formData.description} onChange={(e) => setFormData({ ...formData, description: e.target.value })} className="w-full mb-2 p-2 border" required />
+              <input type="text" placeholder="Keywords" value={formData.keywords} onChange={(e) => setFormData({ ...formData, keywords: e.target.value })} className="w-full mb-2 p-2 border" />
+              <input type="text" placeholder="Robots" value={formData.robots} onChange={(e) => setFormData({ ...formData, robots: e.target.value })} className="w-full mb-2 p-2 border" />
+              <div className="flex space-x-2">
+                <button type="submit" className="bg-blue-500 text-white px-4 py-2 rounded">Save</button>
+                <button type="button" onClick={() => setIsModalOpen(false)} className="bg-gray-500 text-white px-4 py-2 rounded">Cancel</button>
               </div>
             </form>
           </div>
         </div>
       )}
     </div>
-  )
+  );
 }

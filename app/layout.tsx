@@ -1,49 +1,26 @@
-// /app/layout.tsx - FINAL VERSION WITH ALL PROVIDERS
-import type { Metadata } from "next"
-import { Inter } from "next/font/google"
-import "./globals.css"
-import Navbar from "@/components/Navbar"
-import Footer from "@/components/Footer"
-import { AuthProvider } from "@/contexts/AuthContext"
-import { CartProvider } from "@/contexts/CartContext"
-import { WatchlistProvider } from "@/contexts/WatchlistContext"
+import type { Metadata } from 'next';
+import { getConnection } from '../lib/mysql-db';
 
-const inter = Inter({ 
-  subsets: ["latin"],
-  variable: "--font-inter"
-})
-
-export const metadata: Metadata = {
-  title: "DomainHub - Premium Domain Marketplace",
-  description: "Buy and sell premium domain names",
+export async function generateMetadata({ pathname }: { pathname: string }): Promise<Metadata> {
+  try {
+    const connection = getConnection();
+    const [rows] = await connection.execute('SELECT * FROM seo_settings WHERE page = ?', [pathname]);
+    const seo = rows[0] as any;
+    return {
+      title: seo?.title || 'Domain Marketplace',
+      description: seo?.description || 'Buy and sell domains',
+      keywords: seo?.keywords || 'domains',
+      robots: seo?.robots || 'index,follow',
+    };
+  } catch {
+    return { title: 'Domain Marketplace' };
+  }
 }
 
-export default function RootLayout({
-  children,
-}: {
-  children: React.ReactNode
-}) {
+export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" className={inter.variable} suppressHydrationWarning>
-      <body className="min-h-screen bg-gray-50" suppressHydrationWarning>
-        {/* Wrap entire app with all providers */}
-        <AuthProvider>
-          <CartProvider>
-            <WatchlistProvider>
-              {/* Navigation - This will appear on all pages */}
-              <Navbar />
-              
-              {/* Main Content */}
-              <main className="min-h-screen">
-                {children}
-              </main>
-              
-              {/* Footer - This will appear on all pages */}
-              <Footer />
-            </WatchlistProvider>
-          </CartProvider>
-        </AuthProvider>
-      </body>
+    <html lang="en">
+      <body>{children}</body>
     </html>
-  )
+  );
 }
