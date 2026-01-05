@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import { CartProvider } from '../contexts/CartContext';  // Original import add kiya
 import { getConnection } from '../lib/mysql-db';
 
 export async function generateMetadata({ pathname }: { pathname: string }): Promise<Metadata> {
@@ -20,7 +21,11 @@ export async function generateMetadata({ pathname }: { pathname: string }): Prom
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en">
-      <body>{children}</body>
+      <body>
+        <CartProvider>  {/* Yeh add kiya – ab useCart work karega */}
+          {children}
+        </CartProvider>
+      </body>
     </html>
   );
 }

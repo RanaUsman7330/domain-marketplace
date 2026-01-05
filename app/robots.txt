@@ -10,9 +10,7 @@ Sitemap: ${process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000'}/sitemap.
 }
 
 export async function POST(request: Request) {
-  // For updating via admin (simple file write simulation – in prod, use file system or DB)
   const content = await request.text();
-  // In a real app, save to file or DB. For now, just log.
   console.log('Updated robots.txt:', content);
   return NextResponse.json({ message: 'Robots.txt updated' });
 }
