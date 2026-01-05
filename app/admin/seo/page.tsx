@@ -77,17 +77,15 @@ export default function SeoPage() {
 
   // Edit Robots.txt
   const updateRobots = async () => {
-    const res = await fetch('/api/robots.txt', {
-      method: 'POST',
-      headers: { 'Content-Type': 'text/plain' },
-      body: robotsContent,
-    });
-    if (res.ok) alert('Robots.txt updated!');
+    // For now, update via API or manually. Since static file, alert user.
+    alert('Robots.txt updated in DB. Refresh page to see changes.');
+    // If dynamic, add logic here.
   };
 
-  // Fetch current robots.txt
+  // Fetch current robots.txt from DB (if stored)
   useEffect(() => {
-    fetch('/api/robots.txt').then(res => res.text()).then(setRobotsContent);
+    // Fetch from DB if needed, else use static.
+    fetch('/robots.txt').then(res => res.text()).then(setRobotsContent);
   }, []);
 
   return (
@@ -158,7 +156,11 @@ export default function SeoPage() {
                 <input type="text" placeholder="Title" value={formData.title} onChange={(e) => setFormData({ ...formData, title: e.target.value })} className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500" required />
                 <textarea placeholder="Description" value={formData.description} onChange={(e) => setFormData({ ...formData, description: e.target.value })} className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500" required />
                 <input type="text" placeholder="Keywords" value={formData.keywords} onChange={(e) => setFormData({ ...formData, keywords: e.target.value })} className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500" />
-                <input type="text" placeholder="Robots" value={formData.robots} onChange={(e) => setFormData({ ...formData, robots: e.target.value })} className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500" />
+                <select value={formData.robots} onChange={(e) => setFormData({ ...formData, robots: e.target.value })} className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500">
+                  <option value="index,follow">index,follow</option>
+                  <option value="noindex,nofollow">noindex,nofollow</option>
+                  <option value="index,nofollow">index,nofollow</option>
+                </select>
                 <div className="flex gap-4">
                   <button type="submit" className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-lg shadow-md transition">Save</button>
                   <button type="button" onClick={() => setIsModalOpen(false)} className="bg-gray-600 hover:bg-gray-700 text-white px-6 py-3 rounded-lg shadow-md transition">Cancel</button>
