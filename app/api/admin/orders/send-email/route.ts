@@ -1,4 +1,4 @@
-// /app/api/admin/orders/send-email/route.ts - EMAIL NOTIFICATIONS
+// /app/api/admin/orders/send-email/route.ts - Fixed for Next.js 15+
 import { NextRequest, NextResponse } from 'next/server'
 import { executeQuery } from '@/lib/mysql-db'
 

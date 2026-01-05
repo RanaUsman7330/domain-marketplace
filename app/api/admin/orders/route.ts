@@ -1,8 +1,8 @@
-// /app/api/admin/orders/route.ts - Based on your actual database structure
+// /app/api/admin/orders/route.ts - Fixed route structure
 import { NextRequest, NextResponse } from 'next/server'
 import { executeQuery } from '@/lib/mysql-db'
 
-// TEMP: bypass admin authentication for testing
+// Admin authentication function
 const getAdminFromRequest = async (request: NextRequest) => {
   const authHeader = request.headers.get('authorization')
   if (!authHeader) return null
@@ -82,7 +82,7 @@ export async function GET(request: NextRequest) {
   }
 }
 
-// ------------------ CREATE OFFER ------------------
+// ------------------ POST (CREATE) ORDER - ADMIN ------------------
 export async function POST(request: NextRequest) {
   try {
     const admin = await getAdminFromRequest(request)
@@ -123,7 +123,7 @@ export async function POST(request: NextRequest) {
   }
 }
 
-// ------------------ UPDATE ORDER ------------------
+// ------------------ PUT (UPDATE) ORDER - ADMIN ------------------
 export async function PUT(request: NextRequest) {
   try {
     const admin = await getAdminFromRequest(request)
@@ -148,7 +148,7 @@ export async function PUT(request: NextRequest) {
   }
 }
 
-// ------------------ DELETE ORDER ------------------
+// ------------------ DELETE ORDER - ADMIN ------------------
 export async function DELETE(request: NextRequest) {
   try {
     const admin = await getAdminFromRequest(request)

@@ -2,10 +2,13 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { executeQuery } from '@/lib/mysql-db'
 
+// Update your /api/offers/route.ts POST function
 export async function POST(request: NextRequest) {
   try {
-    const { domainId, offerAmount, buyerName, buyerEmail, buyerPhone, message, offerType } = await request.json()
-    
+    const body = await request.json()
+    const { domainId, offerAmount, offerType, message, buyerName, buyerEmail, buyerPhone } = body
+
+    // Validation
     if (!domainId || !offerAmount || !buyerName || !buyerEmail) {
       return NextResponse.json({ 
         success: false, 
@@ -26,20 +29,30 @@ export async function POST(request: NextRequest) {
       }, { status: 404 })
     }
 
-    // Insert offer with CORRECT column names
+    const domainData = domain[0]
+
+    // Create enquiry instead of offer
+    const subject = `Offer for ${domainData.name} - $${offerAmount}`
+    const enquiryMessage = `Offer Amount: $${offerAmount}\n\n${message || ''}`
+
     const result = await executeQuery(
-      'INSERT INTO offers (domain_id, offer_amount, offer_type, status, message, buyer_name, buyer_email, buyer_phone, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())',
-      [domainId, offerAmount, offerType || 'negotiable', 'pending', message || '', buyerName, buyerEmail, buyerPhone || '']
+      `INSERT INTO enquiries 
+      (name, email, subject, message, type, status, domain_id, created_at, updated_at) 
+      VALUES (?, ?, ?, ?, 'offer', 'new', ?, NOW(), NOW())`,
+      [buyerName, buyerEmail, subject, enquiryMessage, domainId]
     ) as any
+
+    // Send admin notification
+    console.log(`📧 NEW OFFER ENQUIRY - ${buyerName} offered $${offerAmount} for ${domainData.name}`)
 
     return NextResponse.json({
       success: true,
-      message: 'Offer submitted successfully',
-      offerId: result.insertId
+      message: 'Offer submitted successfully as enquiry',
+      enquiryId: result.insertId
     })
 
-  } catch (error) {
-    console.error('Create offer error:', error)
+  } catch (error: any) {
+    console.error('Create offer/enquiry error:', error)
     return NextResponse.json({ 
       success: false, 
       error: 'Failed to submit offer',

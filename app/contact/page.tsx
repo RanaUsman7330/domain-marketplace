@@ -1,3 +1,4 @@
+// /app/contact/page.tsx - Updated to create enquiries in database
 'use client'
 import { useState } from 'react'
 import Navbar from '@/components/Navbar'
@@ -17,6 +18,7 @@ export default function ContactPage() {
   })
 
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [submitStatus, setSubmitStatus] = useState<'idle' | 'success' | 'error'>('idle')
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     const { name, value, type } = e.target
@@ -30,23 +32,66 @@ export default function ContactPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    setIsSubmitting(true)
     
-    // Simulate form submission
-    setTimeout(() => {
-      alert('Message sent successfully! We\'ll get back to you within 24 hours.')
-      setIsSubmitting(false)
-      setFormData({
-        name: '',
-        email: '',
-        phone: '',
-        company: '',
-        subject: '',
-        message: '',
-        inquiryType: 'general',
-        agreeToTerms: false
+    if (!formData.agreeToTerms) {
+      alert('Please agree to the terms and conditions')
+      return
+    }
+
+    setIsSubmitting(true)
+    setSubmitStatus('idle')
+    
+    try {
+      // Create enquiry via API
+      const response = await fetch('/api/enquiries', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          name: formData.name,
+          email: formData.email,
+          subject: formData.subject,
+          message: `
+            Inquiry Type: ${formData.inquiryType}\n
+            Company: ${formData.company || 'N/A'}\n
+            Phone: ${formData.phone || 'N/A'}\n\n
+            ${formData.message}
+          `.trim(),
+          type: formData.inquiryType, // general, support, sales, partnership
+          domain: null, // No specific domain for contact form
+          domainId: null
+        })
       })
-    }, 2000)
+
+      const data = await response.json()
+      
+      if (data.success) {
+        setSubmitStatus('success')
+        alert('Enquiry submitted successfully! We\'ll get back to you within 24 hours.')
+        
+        // Reset form
+        setFormData({
+          name: '',
+          email: '',
+          phone: '',
+          company: '',
+          subject: '',
+          message: '',
+          inquiryType: 'general',
+          agreeToTerms: false
+        })
+      } else {
+        setSubmitStatus('error')
+        alert('Failed to submit enquiry: ' + data.error)
+      }
+    } catch (error) {
+      console.error('Contact form error:', error)
+      setSubmitStatus('error')
+      alert('Failed to submit enquiry. Please try again.')
+    } finally {
+      setIsSubmitting(false)
+    }
   }
 
   return (
@@ -124,6 +169,21 @@ export default function ContactPage() {
             <div className="lg:col-span-2">
               <div className="bg-white rounded-lg shadow-lg p-8">
                 <h2 className="text-2xl font-bold mb-6">Contact Form</h2>
+                
+                {/* Success/Error Message */}
+                {submitStatus === 'success' && (
+                  <div className="mb-6 p-4 bg-green-100 border border-green-400 text-green-700 rounded-lg">
+                    <p className="font-medium">✅ Enquiry submitted successfully!</p>
+                    <p className="text-sm">We'll get back to you within 24 hours.</p>
+                  </div>
+                )}
+                
+                {submitStatus === 'error' && (
+                  <div className="mb-6 p-4 bg-red-100 border border-red-400 text-red-700 rounded-lg">
+                    <p className="font-medium">❌ Failed to submit enquiry</p>
+                    <p className="text-sm">Please try again or contact us directly.</p>
+                  </div>
+                )}
                 
                 <form onSubmit={handleSubmit} className="space-y-6">
                   {/* Inquiry Type */}
@@ -277,7 +337,7 @@ export default function ContactPage() {
                     disabled={isSubmitting || !formData.agreeToTerms}
                     className="w-full bg-blue-600 text-white py-3 px-6 rounded-lg font-semibold hover:bg-blue-700 transition disabled:opacity-50 disabled:cursor-not-allowed"
                   >
-                    {isSubmitting ? 'Sending Message...' : 'Send Message'}
+                    {isSubmitting ? 'Sending Enquiry...' : 'Send Enquiry'}
                   </button>
                 </form>
               </div>

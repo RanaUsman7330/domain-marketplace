@@ -15,6 +15,8 @@ export async function GET(request: NextRequest) {
         o.domain_name as domainName,
         o.buyer_name as buyerName,
         o.buyer_email as buyerEmail,
+        o.buyer_phone as buyerPhone,        -- ✅ ADDED
+        o.billing_info as billingInfo,      -- ✅ ADDED
         o.price as totalAmount,
         o.status,
         o.payment_method as paymentMethod,
@@ -27,10 +29,22 @@ export async function GET(request: NextRequest) {
 
     console.log(`Orders fetched: ${orders.length}`)
 
+    // Process billing info
+    const processedOrders = orders.map(order => ({
+      ...order,
+      billingInfo: order.billingInfo ? (() => {
+        try {
+          return JSON.parse(order.billingInfo)
+        } catch {
+          return null
+        }
+      })() : null
+    }))
+
     return NextResponse.json({
       success: true,
-      orders: orders || [],
-      count: orders.length
+      orders: processedOrders || [],
+      count: processedOrders.length
     })
   } catch (error: any) {
     console.error('GET Orders error:', error)
@@ -41,7 +55,6 @@ export async function GET(request: NextRequest) {
     }, { status: 500 })
   }
 }
-
 // ------------------ CREATE ORDER ------------------
 export async function POST(request: NextRequest) {
   try {
@@ -219,21 +232,35 @@ for (let i = 0; i < items.length; i++) {
         finalUserId = guestResult.insertId
       }
     }
+    
 
     console.log('Using final userId:', finalUserId)
 
-    const orderResult = await executeQuery(
+        const orderResult = await executeQuery(
       `INSERT INTO orders 
       (order_number, user_id, domain_id, domain_name, buyer_name, buyer_email, 
-       price, status, payment_method, payment_status, created_at, updated_at) 
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())`,
+       buyer_phone, billing_info, price, status, payment_method, payment_status, created_at, updated_at) 
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())`,
       [
         orderNumber + '-' + itemId,
-        finalUserId,  // Use the resolved user ID
+        finalUserId,
         itemId,
         itemName,
         `${billingInfo.firstName} ${billingInfo.lastName}`,
         billingInfo.email,
+        billingInfo.phone,  // ✅ ADDED: Phone number
+        JSON.stringify({    // ✅ ADDED: Complete billing info as JSON
+          firstName: billingInfo.firstName,
+          lastName: billingInfo.lastName,
+          email: billingInfo.email,
+          phone: billingInfo.phone,
+          company: billingInfo.company || '',
+          country: billingInfo.country,
+          city: billingInfo.city,
+          state: billingInfo.state,
+          zipCode: billingInfo.zipCode,
+          address: billingInfo.address || ''
+        }),
         itemTotal,
         'pending', 
         paymentMethodMap[paymentMethod.type] || 'manual',
