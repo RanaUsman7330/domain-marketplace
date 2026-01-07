@@ -57,34 +57,22 @@ export default function ImportDomainsPage() {
       setProgress(0)
     }
   }
-// In CSV import, add support for SEO fields:
-const { name, category, price, status, description, tags, meta_title, meta_description, meta_keywords, seo_tags } = record
 
-// Update the insert query:
-const domainResult = await executeQuery(`
-  INSERT INTO domains (name, category, price, status, description, tags, meta_title, meta_description, meta_keywords, seo_tags, created_at, updated_at) 
-  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())
-`, [name, categoryName, parseFloat(price), status, description || '', tags || '', 
-    meta_title || '', meta_description || '', meta_keywords || '', seo_tags || ''])
-
-
-// Update the CSV template in /app/admin/domains/import-csv/page.tsx:
-
-const downloadTemplate = () => {
-  const csvContent = `name,category,price,status,description,tags,meta_title,meta_description,meta_keywords,seo_tags
-example.com,Premium,1000,available,Great domain for tech startups,"tech, premium","Premium Domain for Sale - example.com","High-quality domain perfect for tech startups and innovative companies","premium domain, tech domain, startup domain","premium-domain, tech-domain, startup-domain"
-myshop.net,E-commerce,500,available,Perfect for online store,"shop, e-commerce","E-commerce Domain - myshop.net","Ideal domain for e-commerce websites and online retail businesses","ecommerce domain, online store, retail domain","ecommerce-domain, online-store, retail-domain"
-brand.io,Brandable,2000,available,Short and brandable domain,"brand, short","Brandable Domain - brand.io","Short and memorable domain perfect for building a strong brand","brandable domain, short domain, memorable domain","brandable-domain, short-domain, memorable-domain"
+  const downloadTemplate = () => {
+    const csvContent = `name,category,price,status,description,tags
+example.com,Premium,1000,available,Great domain for tech startups,tech premium
+myshop.net,E-commerce,500,available,Perfect for online store,shop e-commerce
+brand.io,Brandable,2000,available,Short and brandable domain,brand short
 `
-  
-  const blob = new Blob([csvContent], { type: 'text/csv' })
-  const url = window.URL.createObjectURL(blob)
-  const a = document.createElement('a')
-  a.href = url
-  a.download = 'domain-import-template-with-seo.csv'
-  a.click()
-  window.URL.revokeObjectURL(url)
-}
+    
+    const blob = new Blob([csvContent], { type: 'text/csv' })
+    const url = window.URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = 'domain-import-template.csv'
+    a.click()
+    window.URL.revokeObjectURL(url)
+  }
 
   return (
     <div className="max-w-2xl mx-auto p-6">

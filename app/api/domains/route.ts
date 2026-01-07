@@ -1,127 +1,110 @@
-// File: /app/api/domains/route.ts - UPDATED FOR CLEAN URLs
-
+// /app/api/domains/route.ts - ROBUST VERSION
 import { NextRequest, NextResponse } from 'next/server'
 import { executeQuery } from '@/lib/mysql-db'
 
-// Helper to determine if input is numeric ID or domain name
-function isNumericId(input: string): boolean {
-  return /^\d+$/.test(input)
-}
-
-// GET domain by name or ID (public)
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url)
-    const domainName = searchParams.get('name')
-    const domainId = searchParams.get('id')
     
-    let query: string
-    let paramsArray: any[]
+    // First, check what columns exist in domains table
+    const tableInfo = await executeQuery(`
+      SHOW COLUMNS FROM domains
+    `) as any[]
     
-    if (domainName) {
-      // Search by name (for clean URLs)
-      query = `
-        SELECT 
-          d.id,
-          d.name,
-          COALESCE(c.name, d.category, 'Uncategorized') as category,
-          d.price,
-          d.status,
-          d.description,
-          d.tags,
-          COALESCE(d.views, 0) as views,
-          COALESCE(d.offers, 0) as offers,
-          DATE_FORMAT(d.created_at, '%Y-%m-%d') as created_at,
-          d.extension,
-          d.length,
-          d.meta_title,
-          d.meta_description,
-          d.meta_keywords,
-          d.seo_tags
-        FROM domains d
-        LEFT JOIN domain_categories dc ON d.id = dc.domain_id
-        LEFT JOIN categories c ON dc.category_id = c.id
-        WHERE d.name = ? AND d.status = 'available'
-        LIMIT 1
-      `
-      paramsArray = [domainName]
-    } else if (domainId) {
-      // Search by ID (fallback)
-      query = `
-        SELECT 
-          d.id,
-          d.name,
-          COALESCE(c.name, d.category, 'Uncategorized') as category,
-          d.price,
-          d.status,
-          d.description,
-          d.tags,
-          COALESCE(d.views, 0) as views,
-          COALESCE(d.offers, 0) as offers,
-          DATE_FORMAT(d.created_at, '%Y-%m-%d') as created_at,
-          d.extension,
-          d.length,
-          d.meta_title,
-          d.meta_description,
-          d.meta_keywords,
-          d.seo_tags
-        FROM domains d
-        LEFT JOIN domain_categories dc ON d.id = dc.domain_id
-        LEFT JOIN categories c ON dc.category_id = c.id
-        WHERE d.id = ? AND d.status = 'available'
-        LIMIT 1
-      `
-      paramsArray = [parseInt(domainId)]
+    const availableColumns = tableInfo.map(col => col.Field)
+    console.log('Available columns in domains API:', availableColumns)
+
+    // Build query based on available columns
+    let selectFields = ['id', 'name', 'price', 'status', 'category', 'description']
+    
+    // Add optional columns if they exist
+    if (availableColumns.includes('extension')) {
+      selectFields.push('extension')
     } else {
-      return NextResponse.json({ error: 'Domain name or ID required' }, { status: 400 })
+      selectFields.push("'.com' as extension")
+    }
+    
+    if (availableColumns.includes('length')) {
+      selectFields.push('length')
+    } else {
+      selectFields.push('LENGTH(name) as length')
+    }
+    
+    if (availableColumns.includes('image_url')) {
+      selectFields.push('image_url as imageUrl')
+    } else {
+      selectFields.push("'' as imageUrl")
+    }
+    
+    if (availableColumns.includes('is_featured')) {
+      selectFields.push('is_featured as isFeatured')
+    } else {
+      selectFields.push('FALSE as isFeatured')
     }
 
-    const domains = await executeQuery(query, paramsArray)
+    // Get filter parameters
+    const category = searchParams.get('category')
+    const priceRange = searchParams.get('priceRange')
+    const length = searchParams.get('length')
+    const search = searchParams.get('search')
+    const sort = searchParams.get('sort') || 'newest'
 
-    if (!domains || domains.length === 0) {
-      return NextResponse.json({ error: 'Domain not found or not available' }, { status: 404 })
+    // Build WHERE conditions
+    let whereConditions = ['1=1'] // Always true to make building easier
+    let params: any[] = []
+
+    // Add search filter
+    if (search) {
+      whereConditions.push('(d.name LIKE ? OR d.description LIKE ?)')
+      params.push(`%${search}%`, `%${search}%`)
     }
+
+    // Add category filter
+    if (category && category !== 'all') {
+      whereConditions.push('d.category = ?')
+      params.push(category)
+    }
+
+    // Build final query
+    const whereClause = whereConditions.join(' AND ')
+    
+    // Build ORDER BY
+    let orderBy = 'd.id DESC'
+    switch (sort) {
+      case 'price-low':
+        orderBy = 'd.price ASC'
+        break
+      case 'price-high':
+        orderBy = 'd.price DESC'
+        break
+      case 'name':
+        orderBy = 'd.name ASC'
+        break
+      case 'newest':
+      default:
+        orderBy = 'd.id DESC'
+    }
+
+    const domains = await executeQuery(`
+      SELECT ${selectFields.join(', ')}
+      FROM domains d
+      WHERE ${whereClause}
+      ORDER BY ${orderBy}
+    `, params)
+
+    console.log(`Found ${domains?.length || 0} domains`)
 
     return NextResponse.json({
       success: true,
-      domain: domains[0]
+      domains: domains || []
     })
 
   } catch (error) {
-    console.error('Error fetching domain:', error)
+    console.error('Domains API error:', error)
     return NextResponse.json({ 
-      success: false, 
-      error: 'Failed to fetch domain' 
-    }, { status: 500 })
-  }
-}
-
-// POST track domain view
-export async function POST(request: NextRequest) {
-  try {
-    const body = await request.json()
-    const { domainId } = body
-
-    if (!domainId) {
-      return NextResponse.json({ error: 'Domain ID required' }, { status: 400 })
-    }
-
-    // Increment view count
-    await executeQuery(
-      'UPDATE domains SET views = views + 1 WHERE id = ?',
-      [domainId]
-    )
-
-    return NextResponse.json({
-      success: true,
-      message: 'View tracked successfully'
-    })
-
-  } catch (error) {
-    console.error('Error tracking view:', error)
-    return NextResponse.json({ 
-      success: false, 
-      error: 'Failed to track view' 
+      error: 'Failed to load domains',
+      success: false,
+      domains: []
     }, { status: 500 })
   }
 }

@@ -269,13 +269,13 @@ export default function AdminDomainsPage() {
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div>
                         <Link 
-                          href={`/admin/domains/${encodeURIComponent(domain.name)}`}
+                          href={`/admin/domains/${domain.id}`}
                           className="text-blue-600 hover:text-blue-800 font-medium"
                         >
                           {domain.name}
                         </Link>
                         <div className="text-sm text-gray-500">
-                          .{domain.name.split('.').pop()?.toLowerCase() || 'com'}
+                          {domain.extension}
                         </div>
                       </div>
                     </td>

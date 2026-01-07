@@ -13,66 +13,48 @@ async function getAdminFromRequest(request: NextRequest) {
 }
 
 // GET all domains with proper category and date formatting
-// Add to /app/api/admin/domains/route.ts - additional endpoint for name-based lookup
-
-// GET domain by name instead of ID (for clean URLs)
-export async function GET(
-  request: NextRequest
-) {
-  const { searchParams } = new URL(request.url)
-  const domainName = searchParams.get('name')
-  
-  if (domainName) {
-    try {
-      const admin = await getAdminFromRequest(request)
-      if (!admin) {
-        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-      }
-
-      const domains = await executeQuery(`
-        SELECT 
-          d.id,
-          d.name,
-          COALESCE(c.name, d.category, 'Uncategorized') as category,
-          d.price,
-          d.status,
-          d.description,
-          d.tags,
-          COALESCE(d.views, 0) as views,
-          COALESCE(d.offers, 0) as offers,
-          DATE_FORMAT(d.created_at, '%Y-%m-%d') as created_at,
-          DATE_FORMAT(d.updated_at, '%Y-%m-%d') as updated_at,
-          d.extension,
-          d.length,
-          d.meta_title,
-          d.meta_description,
-          d.meta_keywords,
-          d.seo_tags
-        FROM domains d
-        LEFT JOIN domain_categories dc ON d.id = dc.domain_id
-        LEFT JOIN categories c ON dc.category_id = c.id
-        WHERE d.name = ?
-        LIMIT 1
-      `, [domainName])
-
-      if (!domains || domains.length === 0) {
-        return NextResponse.json({ error: 'Domain not found' }, { status: 404 })
-      }
-
-      return NextResponse.json({
-        success: true,
-        domain: domains[0]
-      })
-
-    } catch (error) {
-      console.error('Error fetching domain by name:', error)
-      return NextResponse.json({ 
-        success: false, 
-        error: 'Failed to fetch domain' 
-      }, { status: 500 })
+export async function GET(request: NextRequest) {
+  try {
+    const admin = await getAdminFromRequest(request)
+    if (!admin) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
+
+    // Updated query to properly join with categories and format dates
+    const domains = await executeQuery(`
+      SELECT 
+        d.id,
+        d.name,
+        COALESCE(c.name, d.category, 'Uncategorized') as category,
+        d.price,
+        d.status,
+        d.description,
+        d.tags,
+        COALESCE(d.views, 0) as views,
+        COALESCE(d.offers, 0) as offers,
+        DATE_FORMAT(d.created_at, '%Y-%m-%d') as created_at,
+        DATE_FORMAT(d.updated_at, '%Y-%m-%d') as updated_at,
+        d.extension,
+        d.length
+      FROM domains d
+      LEFT JOIN domain_categories dc ON d.id = dc.domain_id
+      LEFT JOIN categories c ON dc.category_id = c.id
+      ORDER BY d.created_at DESC
+    `)
+
+    return NextResponse.json({
+      success: true,
+      domains: domains || []
+    })
+
+  } catch (error) {
+    console.error('Admin domains API error:', error)
+    return NextResponse.json({ 
+      error: 'Failed to load domains',
+      success: false 
+    }, { status: 500 })
   }
-  
+}
 
 // POST method for creating new domains
 export async function POST(request: NextRequest) {

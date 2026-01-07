@@ -1,8 +1,8 @@
-// /app/api/admin/domains/[id]/route.ts - COMPLETE FIXED VERSION
+// /app/api/admin/domains/[id]/route.ts - COMPREHENSIVE ADMIN API
 import { NextRequest, NextResponse } from 'next/server'
 import { executeQuery } from '@/lib/mysql-db'
 
-// Helper function to get admin from token
+// Helper to get admin from token
 async function getAdminFromRequest(request: NextRequest) {
   const authHeader = request.headers.get('authorization')
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
@@ -20,36 +20,30 @@ async function getAdminFromRequest(request: NextRequest) {
   return users.length > 0 ? users[0] : null
 }
 
-// GET method for fetching single domain
 export async function GET(
   request: NextRequest,
   context: { params: Promise<{ id: string }> }
 ) {
   try {
-    console.log('GET single domain API called')
-    
     const admin = await getAdminFromRequest(request)
     if (!admin) {
-      console.log('Unauthorized GET attempt')
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
     const { id } = await context.params
-    console.log('Domain ID from params:', id)
-    
     const domainId = parseInt(id, 10)
 
     if (isNaN(domainId)) {
-      console.log('Invalid domain ID:', id)
       return NextResponse.json({ 
         success: false, 
-        error: 'Invalid domain ID' 
+        error: 'Invalid domain ID',
+        debug: `Received ID: ${id}`
       }, { status: 400 })
     }
 
     console.log('Fetching domain with ID:', domainId)
 
-    // Get domain details - FIXED COLUMNS
+    // Get domain details
     const domains = await executeQuery(`
       SELECT 
         id,
@@ -58,11 +52,12 @@ export async function GET(
         description,
         category,
         status,
+        extension,
+        length,
+        image_url as imageUrl,
+        is_featured as isFeatured,
         created_at as createdAt,
-        updated_at as updatedAt,
-        tags,
-        views,
-        offers
+        updated_at as updatedAt
       FROM domains 
       WHERE id = ?
       LIMIT 1
@@ -71,7 +66,6 @@ export async function GET(
     console.log('Query result:', domains)
 
     if (!domains || domains.length === 0) {
-      console.log('Domain not found with ID:', domainId)
       return NextResponse.json({ 
         success: false, 
         error: 'Domain not found',
@@ -94,17 +88,13 @@ export async function GET(
   }
 }
 
-// PUT method for updating domain
 export async function PUT(
   request: NextRequest,
   context: { params: Promise<{ id: string }> }
 ) {
   try {
-    console.log('PUT domain API called')
-    
     const admin = await getAdminFromRequest(request)
     if (!admin) {
-      console.log('Unauthorized PUT attempt')
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
@@ -112,7 +102,6 @@ export async function PUT(
     const domainId = parseInt(id, 10)
 
     if (isNaN(domainId)) {
-      console.log('Invalid domain ID:', id)
       return NextResponse.json({ 
         success: false, 
         error: 'Invalid domain ID' 
@@ -122,25 +111,39 @@ export async function PUT(
     const body = await request.json()
     const { name, category, price, status, description, tags } = body
 
+    // Validate required fields
+    if (!name || !category || !price || !status) {
+      return NextResponse.json({ 
+        success: false, 
+        error: 'Missing required fields' 
+      }, { status: 400 })
+    }
+
     // Update domain
     const result = await executeQuery(
-      'UPDATE domains SET name = ?, category = ?, price = ?, status = ?, description = ?, tags = ?, updated_at = NOW() WHERE id = ?',
-      [name, category, parseFloat(price), status, description || '', tags || '', domainId]
+      `UPDATE domains 
+       SET name = ?, category = ?, price = ?, status = ?, description = ?, tags = ?, updated_at = NOW()
+       WHERE id = ?`,
+      [name, category, price, status, description, tags || '', domainId]
     ) as any
 
     if (result.affectedRows === 0) {
-      console.log('Domain not found for update:', domainId)
       return NextResponse.json({ 
         success: false, 
         error: 'Domain not found' 
       }, { status: 404 })
     }
 
-    console.log('Domain updated successfully:', domainId)
-    
+    // Get updated domain
+    const updatedDomains = await executeQuery(
+      'SELECT * FROM domains WHERE id = ?',
+      [domainId]
+    ) as any[]
+
     return NextResponse.json({
       success: true,
-      message: 'Domain updated successfully'
+      message: 'Domain updated successfully',
+      domain: updatedDomains[0]
     })
 
   } catch (error) {
@@ -153,34 +156,25 @@ export async function PUT(
   }
 }
 
-// DELETE method for deleting domain
 export async function DELETE(
   request: NextRequest,
   context: { params: Promise<{ id: string }> }
 ) {
   try {
-    console.log('DELETE API called for domain')
-    
     const admin = await getAdminFromRequest(request)
     if (!admin) {
-      console.log('Unauthorized DELETE attempt')
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
     const { id } = await context.params
-    console.log('Domain ID from params:', id)
-    
     const domainId = parseInt(id, 10)
 
     if (isNaN(domainId)) {
-      console.log('Invalid domain ID:', id)
       return NextResponse.json({ 
         success: false, 
         error: 'Invalid domain ID' 
       }, { status: 400 })
     }
-
-    console.log('Attempting to delete domain ID:', domainId)
 
     // Delete domain
     const result = await executeQuery(
@@ -188,18 +182,13 @@ export async function DELETE(
       [domainId]
     ) as any
 
-    console.log('Delete result:', result)
-
     if (result.affectedRows === 0) {
-      console.log('Domain not found for ID:', domainId)
       return NextResponse.json({ 
         success: false, 
         error: 'Domain not found' 
       }, { status: 404 })
     }
 
-    console.log('Domain deleted successfully:', domainId)
-    
     return NextResponse.json({
       success: true,
       message: 'Domain deleted successfully'
