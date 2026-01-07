@@ -1,4 +1,4 @@
-// /app/page.tsx - FIXED VERSION
+// app/(site)/page.tsx - Fixed missing contactPhone
 'use client'
 import Navbar from '@/components/Navbar'
 import Footer from '@/components/Footer'
@@ -6,9 +6,25 @@ import DomainCard from '@/components/DomainCard'
 import SearchBar from '@/components/SearchBar'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
+import { useEffect, useState } from 'react'
+import { useSiteSettings } from '@/hooks/useSiteSettings'
 
 export default function Home() {
   const router = useRouter()
+  const { siteName, siteDescription, contactEmail, contactPhone, currency } = useSiteSettings()
+  const [featuredDomains, setFeaturedDomains] = useState([])
+
+  // Fetch featured domains from API
+  useEffect(() => {
+    fetch('/api/domains?featured=true&limit=3')
+      .then(res => res.json())
+      .then(data => {
+        if (data.success) {
+          setFeaturedDomains(data.domains || [])
+        }
+      })
+      .catch(error => console.error('Error fetching featured domains:', error))
+  }, [])
 
   const handleSearch = (term: string) => {
     if (term) {
@@ -18,28 +34,22 @@ export default function Home() {
 
   return (
     <main className="min-h-screen bg-white">
-      
-      {/* Hero Section */}
+      {/* Hero Section with Dynamic Content from Settings */}
       <section className="bg-gradient-to-r from-blue-600 to-purple-600 text-white py-20">
         <div className="container mx-auto px-4 text-center">
           <h1 className="text-5xl font-bold mb-6">
-            🚀 Find Your Perfect Domain
+            🚀 Find Your Perfect Domain at {siteName}
           </h1>
           <p className="text-xl mb-8">
-            Discover thousands of premium, luxury, and brandable domains. Whether you're starting a startup or scaling an empire, find the perfect digital address.
+            {siteDescription}
           </p>
-          <div className="flex flex-wrap justify-center gap-2 mb-8">
-            <span className="bg-white/20 px-3 py-1 rounded-full text-sm">Popular: startup.co</span>
-            <span className="bg-white/20 px-3 py-1 rounded-full text-sm">nexus.io</span>
-            <span className="bg-white/20 px-3 py-1 rounded-full text-sm">vision.tech</span>
-          </div>
           <div className="max-w-2xl mx-auto">
             <SearchBar onSearch={handleSearch} />
           </div>
         </div>
       </section>
 
-      {/* Featured Domains */}
+      {/* Featured Domains - Dynamic from DB */}
       <section className="py-16 bg-gray-50">
         <div className="container mx-auto px-4">
           <h2 className="text-3xl font-bold text-center mb-12">
@@ -49,42 +59,21 @@ export default function Home() {
             Hand-picked domains for discerning entrepreneurs
           </p>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            <DomainCard 
-              id={1}
-              name="venture.co"
-              price={45000}
-              category="premium"
-              status="available"
-              length={7}
-              extension=".co"
-              description="Premium business domain perfect for startups and ventures"
-              imageUrl=""
-              isFeatured={true}
-            />
-            <DomainCard 
-              id={2}
-              name="nexus.io"
-              price={35000}
-              category="premium"
-              status="available"
-              length={5}
-              extension=".io"
-              description="Tech-focused domain ideal for innovative platforms"
-              imageUrl=""
-              isFeatured={true}
-            />
-            <DomainCard 
-              id={3}
-              name="luxe.com"
-              price={125000}
-              category="luxury"
-              status="available"
-              length={4}
-              extension=".com"
-              description="Ultra-premium luxury brand domain"
-              imageUrl=""
-              isFeatured={true}
-            />
+            {featuredDomains.map((domain: any) => (
+              <DomainCard 
+                key={domain.id}
+                id={domain.id}
+                name={domain.name}
+                price={domain.price}
+                category={domain.category}
+                status={domain.status}
+                length={domain.length}
+                extension={domain.extension}
+                description={domain.description}
+                imageUrl={domain.imageUrl}
+                isFeatured={true}
+              />
+            ))}
           </div>
           <div className="text-center mt-8">
             <Link href="/domains" className="bg-blue-600 text-white px-8 py-3 rounded-lg hover:bg-blue-700 transition font-semibold">
@@ -93,8 +82,7 @@ export default function Home() {
           </div>
         </div>
       </section>
-
-      {/* Rest of your page content remains the same */}
+      
       {/* Categories */}
       <section className="py-16">
         <div className="container mx-auto px-4">
@@ -115,11 +103,11 @@ export default function Home() {
         </div>
       </section>
 
-      {/* Why Choose Us */}
+      {/* Why Choose Us - Updated with dynamic site name */}
       <section className="py-16 bg-gray-50">
         <div className="container mx-auto px-4">
           <h2 className="text-3xl font-bold text-center mb-12">
-            Why Choose DomainHub?
+            Why Choose {siteName}?
           </h2>
           <p className="text-center text-gray-600 mb-12">
             The premier destination for domain buyers and sellers
@@ -188,13 +176,16 @@ export default function Home() {
         </div>
       </section>
 
-      {/* Testimonials section would go here if you have it */}
-      <div className="py-16 bg-gray-50">
+      {/* Contact Info - Dynamic */}
+      <section className="py-16 bg-gray-50">
         <div className="container mx-auto px-4 text-center">
-          <h2 className="text-3xl font-bold mb-8">What Our Clients Say</h2>
-          <p className="text-gray-600">Join thousands of satisfied customers</p>
+          <h2 className="text-3xl font-bold mb-8">Ready to Get Started?</h2>
+          <p className="text-gray-600 mb-8">Contact us at {contactEmail} or call {contactPhone}</p>
+          <Link href="/contact" className="bg-blue-600 text-white px-8 py-3 rounded-lg hover:bg-blue-700 transition">
+            Contact Us
+          </Link>
         </div>
-      </div>
+      </section>
     </main>
   )
 }

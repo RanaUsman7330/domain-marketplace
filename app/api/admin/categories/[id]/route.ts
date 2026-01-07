@@ -57,35 +57,32 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
   }
 }
 
-export async function DELETE(request: NextRequest, { params }: { params: { id: string } }) {
+export async function DELETE(
+  request: NextRequest,
+  { params }: { params: { id: string } }
+) {
+  console.log('=== DELETE ROUTE REACHED ===')
+  
   try {
-    const admin = await getAdminFromRequest(request)
-    if (!admin) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
-
-    // Check if tag is being used by any domains
-    const domainCount = await executeQuery(
-      'SELECT COUNT(*) as count FROM domain_tags WHERE tag_id = ?',
-      [params.id]
-    ) as any[]
-
-    if (domainCount[0]?.count > 0) {
-      return NextResponse.json({ 
-        error: 'Cannot delete tag: it is being used by domains' 
-      }, { status: 400 })
-    }
-
-    // Delete tag
-    await executeQuery('DELETE FROM tags WHERE id = ?', [params.id])
-
+    console.log('Request URL:', request.url)
+    console.log('Params:', params)
+    
+    // For now, let's just return success to see if the route is working
     return NextResponse.json({
       success: true,
-      message: 'Tag deleted successfully'
+      message: 'Delete route reached successfully',
+      id: params.id
     })
-
+    
   } catch (error) {
-    console.error('Delete tag error:', error)
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+    console.error('Error in delete route:', error)
+    return NextResponse.json(
+      { 
+        success: false, 
+        error: 'Route error',
+        message: error instanceof Error ? error.message : 'Unknown error'
+      },
+      { status: 500 }
+    )
   }
 }

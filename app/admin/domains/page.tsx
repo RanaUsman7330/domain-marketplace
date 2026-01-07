@@ -1,3 +1,5 @@
+// File: /app/admin/domains/page.tsx - COMPLETE UPDATE
+
 'use client'
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
@@ -15,6 +17,8 @@ interface Domain {
   offers: number
   created_at: string
   updated_at: string
+  extension: string
+  length: number
 }
 
 export default function AdminDomainsPage() {
@@ -73,29 +77,6 @@ export default function AdminDomainsPage() {
     }
   }
 
-  const bulkDelete = async (selectedIds: number[]) => {
-    if (!confirm(`Are you sure you want to delete ${selectedIds.length} domains?`)) return
-
-    try {
-      const token = localStorage.getItem('adminToken')
-      const response = await fetch('/api/admin/domains/bulk-delete', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify({ ids: selectedIds })
-      })
-      
-      const data = await response.json()
-      if (data.success) {
-        loadDomains() // Refresh list
-      }
-    } catch (error) {
-      console.error('Error bulk deleting:', error)
-    }
-  }
-
   // Filter and sort domains
   const filteredDomains = domains
     .filter(domain => {
@@ -120,8 +101,18 @@ export default function AdminDomainsPage() {
       return 0
     })
 
-  const categories = Array.from(new Set(domains.map(d => d.category)))
+  const categories = Array.from(new Set(domains.map(d => d.category).filter(Boolean)))
   const statuses = ['available', 'sold', 'auction', 'pending']
+
+  // Helper function to format date properly
+  const formatDate = (dateString: string) => {
+    if (!dateString) return 'No date'
+    try {
+      return new Date(dateString).toLocaleDateString()
+    } catch {
+      return 'Invalid Date'
+    }
+  }
 
   return (
     <div className="space-y-6">
@@ -252,6 +243,9 @@ export default function AdminDomainsPage() {
                   Offers
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Date Added
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Actions
                 </th>
               </tr>
@@ -259,13 +253,13 @@ export default function AdminDomainsPage() {
             <tbody className="bg-white divide-y divide-gray-200">
               {loading ? (
                 <tr>
-                  <td colSpan={7} className="px-6 py-4 text-center text-gray-500">
+                  <td colSpan={8} className="px-6 py-4 text-center text-gray-500">
                     Loading domains...
                   </td>
                 </tr>
               ) : filteredDomains.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="px-6 py-4 text-center text-gray-500">
+                  <td colSpan={8} className="px-6 py-4 text-center text-gray-500">
                     No domains found matching your criteria
                   </td>
                 </tr>
@@ -275,18 +269,18 @@ export default function AdminDomainsPage() {
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div>
                         <Link 
-                          href={`/admin/domains/${domain.id}`}
+                          href={`/admin/domains/${encodeURIComponent(domain.name)}`}
                           className="text-blue-600 hover:text-blue-800 font-medium"
                         >
                           {domain.name}
                         </Link>
                         <div className="text-sm text-gray-500">
-                          {new Date(domain.created_at).toLocaleDateString()}
+                          .{domain.name.split('.').pop()?.toLowerCase() || 'com'}
                         </div>
                       </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      {domain.category}
+                      {domain.category || 'Uncategorized'}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                       ${domain.price.toLocaleString()}
@@ -306,6 +300,9 @@ export default function AdminDomainsPage() {
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                       {domain.offers}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                      {formatDate(domain.created_at)}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                       <div className="flex space-x-2">

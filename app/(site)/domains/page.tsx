@@ -1,4 +1,3 @@
-// /app/domains/page.tsx
 'use client'
 import { useState, useEffect } from 'react'
 import Navbar from '@/components/Navbar'
@@ -7,6 +6,8 @@ import DomainCard from '@/components/DomainCard'
 import SearchBar from '@/components/SearchBar'
 import FilterSidebar from '@/components/FilterSidebar'
 import Link from 'next/link'
+
+
 
 interface Domain {
   id: number

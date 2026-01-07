@@ -1,200 +1,136 @@
-// /app/api/admin/domains/import-csv/route.ts - FIXED CSV IMPORT API
+// File: /app/api/admin/domains/import-csv/route.ts - COMPLETE UPDATE
+
 import { NextRequest, NextResponse } from 'next/server'
 import { executeQuery } from '@/lib/mysql-db'
 
-// Helper to get admin from token
-async function getAdminFromRequest(request: NextRequest) {
-  const authHeader = request.headers.get('authorization')
-  if (!authHeader || !authHeader.startsWith('Bearer ')) {
-    return null
-  }
-
-  const token = authHeader.substring(7)
-  
-  // For now, check if it's a valid admin token
-  const users = await executeQuery(
-    'SELECT id, email, name, role FROM users WHERE email = ? AND role = ?',
-    ['admin@example.com', 'admin']
-  ) as any[]
-
-  return users.length > 0 ? users[0] : null
-}
-
-// Helper to parse CSV
-function parseCSV(text: string): string[][] {
-  const lines = text.split('\n').filter(line => line.trim())
-  return lines.map(line => {
-    const result = []
-    let current = ''
-    let inQuotes = false
-    
-    for (let i = 0; i < line.length; i++) {
-      const char = line[i]
-      const nextChar = line[i + 1]
-      
-      if (char === '"') {
-        if (inQuotes && nextChar === '"') {
-          current += '"'
-          i++ // Skip next quote
-        } else {
-          inQuotes = !inQuotes
-        }
-      } else if (char === ',' && !inQuotes) {
-        result.push(current.trim())
-        current = ''
-      } else {
-        current += char
-      }
+async function getOrCreateCategory(categoryName: string): Promise<number> {
+  try {
+    if (!categoryName || categoryName.trim() === '' || categoryName === 'Uncategorized') {
+      return 1; // Default to Uncategorized
     }
-    result.push(current.trim())
-    return result
-  })
+
+    // Try to find existing category
+    const existing = await executeQuery(
+      'SELECT id FROM categories WHERE name = ?',
+      [categoryName.trim()]
+    ) as any[]
+
+    if (existing && existing.length > 0) {
+      return existing[0].id
+    }
+
+    // Create new category if it doesn't exist
+    const result = await executeQuery(
+      'INSERT INTO categories (name, description, status, created_at) VALUES (?, ?, ?, NOW())',
+      [categoryName.trim(), `Auto-created category for ${categoryName}`, 1]
+    ) as any
+
+    return result.insertId
+  } catch (error) {
+    console.error('Error in getOrCreateCategory:', error)
+    // Return default category if there's an error
+    return 1
+  }
 }
 
 export async function POST(request: NextRequest) {
   try {
-    console.log('CSV Import API called')
-    
-    const admin = await getAdminFromRequest(request)
-    if (!admin) {
-      console.log('Unauthorized access attempt')
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
-
-    console.log('Admin authenticated:', admin.email)
-
-    // Get form data
     const formData = await request.formData()
     const file = formData.get('file') as File
-
-    if (!file) {
-      console.log('No file provided')
-      return NextResponse.json({ 
-        success: false, 
-        error: 'No file provided' 
-      }, { status: 400 })
-    }
-
-    console.log('File received:', file.name, 'Size:', file.size)
-
-    if (!file.name.endsWith('.csv')) {
-      console.log('Invalid file type:', file.name)
-      return NextResponse.json({ 
-        success: false, 
-        error: 'Please upload a CSV file' 
-      }, { status: 400 })
-    }
-
-    // Read file content
-    const text = await file.text()
-    console.log('CSV content length:', text.length)
     
-    const rows = parseCSV(text)
-    console.log('Parsed rows:', rows.length)
-
-    if (rows.length === 0) {
-      console.log('CSV file is empty')
-      return NextResponse.json({ 
-        success: false, 
-        error: 'CSV file is empty' 
-      }, { status: 400 })
+    if (!file) {
+      return NextResponse.json({ error: 'No file provided' }, { status: 400 })
     }
 
-    const imported: any[] = []
-    const failed: any[] = []
+    const csvContent = await file.text()
+    const records = parseCSV(csvContent)
+    
+    let importedCount = 0
+    let autoCreatedCategories = 0
     const errors: string[] = []
 
-    // Process each row
-    for (let i = 0; i < rows.length; i++) {
-      const row = rows[i]
-      console.log(`Processing row ${i + 1}:`, row)
-      
-      // Skip header row if it exists
-      if (i === 0 && row[0].toLowerCase().includes('name')) {
-        console.log('Skipping header row')
-        continue
-      }
-
+    for (const record of records) {
       try {
-        if (row.length < 6) {
-          console.log(`Row ${i + 1}: Not enough columns`)
-          failed.push({ row: i + 1, data: row, error: 'Not enough columns' })
-          errors.push(`Row ${i + 1}: Not enough columns`)
-          continue
+        const { name, category, price, status, description, tags } = record
+        
+        if (!name) continue
+
+        // Get or create category
+        const categoryId = await getOrCreateCategory(category)
+        if (categoryId && category && category.trim() !== '' && category !== 'Uncategorized') {
+          autoCreatedCategories++
         }
 
-        const [name, category, priceStr, status, description, tags] = row
-
-        // Validate required fields
-        if (!name || !category || !priceStr || !status) {
-          console.log(`Row ${i + 1}: Missing required fields`)
-          failed.push({ row: i + 1, data: row, error: 'Missing required fields' })
-          errors.push(`Row ${i + 1}: Missing required fields`)
-          continue
+        // Get actual category name for the domain table
+        let categoryName = 'Uncategorized'
+        if (categoryId > 0) {
+          const catResult = await executeQuery(
+            'SELECT name FROM categories WHERE id = ?',
+            [categoryId]
+          ) as any[]
+          if (catResult.length > 0) {
+            categoryName = catResult[0].name
+          }
         }
 
-        const price = parseFloat(priceStr)
-        if (isNaN(price) || price < 0) {
-          console.log(`Row ${i + 1}: Invalid price - ${priceStr}`)
-          failed.push({ row: i + 1, data: row, error: 'Invalid price' })
-          errors.push(`Row ${i + 1}: Invalid price - ${priceStr}`)
-          continue
-        }
-
-        // Check if domain already exists
-        const existing = await executeQuery(
-          'SELECT id FROM domains WHERE name = ?',
-          [name]
-        ) as any[]
-
-        if (existing.length > 0) {
-          console.log(`Row ${i + 1}: Domain ${name} already exists`)
-          failed.push({ row: i + 1, data: row, error: 'Domain already exists' })
-          errors.push(`Row ${i + 1}: Domain ${name} already exists`)
-          continue
-        }
-
-        // Insert domain
-        console.log(`Inserting domain: ${name}`)
-        const result = await executeQuery(
-          'INSERT INTO domains (name, category, price, status, description, tags, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, NOW(), NOW())',
-          [name, category, price, status, description, tags || '']
+        // Insert domain with category name
+        const domainResult = await executeQuery(
+          `INSERT INTO domains (name, category, price, status, description, tags, created_at, updated_at) 
+           VALUES (?, ?, ?, ?, ?, ?, NOW(), NOW())`,
+          [name, categoryName, parseFloat(price) || 0, status || 'available', description || '', tags || '']
         ) as any
 
-        console.log(`Domain inserted with ID: ${result.insertId}`)
-        imported.push({
-          id: result.insertId,
-          name,
-          category,
-          price,
-          status,
-          description,
-          tags
-        })
+        // Link domain to category if we have a valid category
+        if (categoryId && categoryId > 0) {
+          await executeQuery(
+            'INSERT INTO domain_categories (domain_id, category_id) VALUES (?, ?)',
+            [domainResult.insertId, categoryId]
+          )
+        }
 
+        importedCount++
       } catch (error) {
-        console.error(`Error processing row ${i + 1}:`, error)
-        failed.push({ row: i + 1, data: row, error: error.message })
-        errors.push(`Row ${i + 1}: ${error.message}`)
+        console.error('Error processing record:', error)
+        errors.push(`Error processing ${record.name}: ${error instanceof Error ? error.message : 'Unknown error'}`)
       }
     }
-
-    console.log(`Import complete: ${imported.length} successful, ${failed.length} failed`)
 
     return NextResponse.json({
       success: true,
-      imported: imported.length,
-      failed: failed.length,
-      errors: errors,
-      message: `Successfully imported ${imported.length} domains, ${failed.length} failed`
+      imported: importedCount,
+      autoCreatedCategories,
+      totalRecords: records.length,
+      errors: errors.length > 0 ? errors : undefined
     })
 
   } catch (error) {
-    console.error('CSV import API error:', error)
-    return NextResponse.json({ 
-      success: false, 
-      error: 'Failed to import CSV',
-      debug: error.message 
-    }, { status: 500 })
+    console.error('CSV import error:', error)
+    return NextResponse.json(
+      { 
+        success: false, 
+        error: 'Failed to import CSV',
+        message: error instanceof Error ? error.message : 'Unknown error'
+      },
+      { status: 500 }
+    )
   }
+}
+
+// Simple CSV parser function
+function parseCSV(csvContent: string): any[] {
+  const lines = csvContent.split('\n').filter(line => line.trim())
+  if (lines.length === 0) return []
+  
+  const headers = lines[0].split(',').map(h => h.trim().toLowerCase())
+  
+  return lines.slice(1).map(line => {
+    const values = line.split(',').map(v => v.trim())
+    const record: any = {}
+    
+    headers.forEach((header, index) => {
+      record[header] = values[index] || ''
+    })
+    
+    return record
+  })
 }

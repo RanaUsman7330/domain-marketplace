@@ -1,58 +1,68 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { getConnection } from '../../../../lib/mysql-db';
-
-export async function GET() {
-  try {
-    const connection = getConnection();
-    const [rows] = await connection.execute('SELECT id, page, title, description, keywords, robots FROM seo_settings ORDER BY page');
-    return NextResponse.json(rows);
-  } catch (error) {
-    console.error('SEO GET error:', error);
-    return NextResponse.json({ error: 'Failed to fetch SEO settings' }, { status: 500 });
-  }
-}
+// FIXED VERSION - Handles NOT NULL constraints
+import { NextRequest, NextResponse } from 'next/server'
+import { executeQuery } from '@/lib/mysql-db'
 
 export async function POST(request: NextRequest) {
   try {
-    const body = await request.json();
-    const { page, title, description, keywords, robots } = body;
-    const connection = getConnection();
-    await connection.execute(
-      'INSERT INTO seo_settings (page, title, description, keywords, robots, priority, last_modified) VALUES (?, ?, ?, ?, ?, 0.5, NOW())',
-      [page, title, description, keywords, robots]
-    );
-    return NextResponse.json({ message: 'SEO setting added' });
+    const body = await request.json()
+    console.log('🔍 Received body:', body);
+    
+    // Ensure NO NULL values - use empty strings instead
+    const page_name = body.page?.trim() || ''  // This MUST NOT be null
+    const title = body.title?.trim() || ''
+    const description = body.description?.trim() || ''
+    const keywords = body.keywords?.trim() || ''
+    const robots = body.robots || 'index,follow'
+    const priority = parseFloat(body.priority) || 0.5
+
+    console.log('🔍 Final data:', { page_name, title, description, keywords });
+
+    if (!page_name || !title || !description) {
+      return NextResponse.json({ 
+        success: false, 
+        error: 'Missing required fields',
+        received: { page_name, title, description }
+      }, { status: 400 })
+    }
+
+    // Check if page already exists (using page_name as the key)
+    const [existing] = await executeQuery('SELECT id FROM seo_settings WHERE page_name = ?', [page_name]) as any[]
+    
+    if (existing) {
+      // Update existing
+      await executeQuery(
+        `UPDATE seo_settings SET 
+         title = ?, description = ?, keywords = ?, robots = ?, priority = ?
+         WHERE page_name = ?`,
+        [title, description, keywords, robots, priority, page_name]
+      )
+      return NextResponse.json({ success: true, message: 'Updated existing setting' })
+    } else {
+      // Insert new - ensure NO NULL values anywhere
+      const result = await executeQuery(
+        `INSERT INTO seo_settings (page_name, title, description, keywords, robots, priority) 
+         VALUES (?, ?, ?, ?, ?, ?)`,
+        [page_name, title, description, keywords, robots, priority]
+      ) as any
+      
+      console.log('✅ SEO setting saved with ID:', result.insertId);
+      return NextResponse.json({ success: true, id: result.insertId })
+    }
   } catch (error) {
-    console.error('SEO POST error:', error);
-    return NextResponse.json({ error: 'Failed to add SEO setting' }, { status: 500 });
+    console.error('❌ SEO POST error:', error)
+    return NextResponse.json({ 
+      success: false, 
+      error: error instanceof Error ? error.message : 'Unknown error'
+    }, { status: 500 })
   }
 }
 
-export async function PUT(request: NextRequest) {
+// GET - Fetch all SEO settings
+export async function GET() {
   try {
-    const body = await request.json();
-    const { id, page, title, description, keywords, robots } = body;
-    const connection = getConnection();
-    await connection.execute(
-      'UPDATE seo_settings SET page = ?, title = ?, description = ?, keywords = ?, robots = ?, last_modified = NOW() WHERE id = ?',
-      [page, title, description, keywords, robots, id]
-    );
-    return NextResponse.json({ message: 'SEO setting updated' });
+    const rows = await executeQuery('SELECT * FROM seo_settings ORDER BY page_name') as any[]
+    return NextResponse.json({ success: true, settings: rows })
   } catch (error) {
-    console.error('SEO PUT error:', error);
-    return NextResponse.json({ error: 'Failed to update SEO setting' }, { status: 500 });
-  }
-}
-
-export async function DELETE(request: NextRequest) {
-  try {
-    const body = await request.json();
-    const { id } = body;
-    const connection = getConnection();
-    await connection.execute('DELETE FROM seo_settings WHERE id = ?', [id]);
-    return NextResponse.json({ message: 'SEO setting deleted' });
-  } catch (error) {
-    console.error('SEO DELETE error:', error);
-    return NextResponse.json({ error: 'Failed to delete SEO setting' }, { status: 500 });
+    return NextResponse.json({ success: false, error: error.message }, { status: 500 })
   }
 }

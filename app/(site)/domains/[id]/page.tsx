@@ -6,6 +6,8 @@ import { useWatchlist } from '@/contexts/WatchlistContext'
 import MakeOfferModal from '@/components/MakeOfferModal'
 import { use } from 'react'
 
+
+
 export default function DomainDetailPage({ 
   params 
 }: { 

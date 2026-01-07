@@ -1,4 +1,4 @@
-// File: /app/admin/domains/[id]/page.tsx - COMPLETE ADMIN DOMAIN DETAIL PAGE
+// File: /app/admin/domains/[domain]/page.tsx - COMPLETE ADMIN DOMAIN DETAIL
 
 'use client'
 import { useState, useEffect } from 'react'
@@ -25,7 +25,7 @@ interface Domain {
   seo_tags?: string
 }
 
-export default function AdminDomainDetailPage({ params }: { params: { id: string } }) {
+export default function AdminDomainDetailPage({ params }: { params: { domain: string } }) {
   const router = useRouter()
   const [domain, setDomain] = useState<Domain | null>(null)
   const [loading, setLoading] = useState(true)
@@ -43,21 +43,37 @@ export default function AdminDomainDetailPage({ params }: { params: { id: string
     seo_tags: ''
   })
 
+  const domainIdentifier = decodeURIComponent(params.domain)
+
   useEffect(() => {
     loadDomain()
-  }, [params.id])
+  }, [domainIdentifier])
 
   const loadDomain = async () => {
     try {
       const token = localStorage.getItem('adminToken')
-      const response = await fetch(`/api/admin/domains/${params.id}`, {
+      
+      // Try to load by name first (for clean URLs)
+      let response = await fetch(`/api/admin/domains?name=${encodeURIComponent(domainIdentifier)}`, {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
         }
       })
       
-      const data = await response.json()
+      let data = await response.json()
+      
+      // If not found by name, try by ID
+      if (!data.success || !data.domain) {
+        response = await fetch(`/api/admin/domains/${domainIdentifier}`, {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          }
+        })
+        data = await response.json()
+      }
+      
       if (data.success && data.domain) {
         setDomain(data.domain)
         setFormData({
@@ -85,7 +101,7 @@ export default function AdminDomainDetailPage({ params }: { params: { id: string
     
     try {
       const token = localStorage.getItem('adminToken')
-      const response = await fetch(`/api/admin/domains/${params.id}`, {
+      const response = await fetch(`/api/admin/domains/${domain?.id}`, {
         method: 'PUT',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -114,7 +130,7 @@ export default function AdminDomainDetailPage({ params }: { params: { id: string
     
     try {
       const token = localStorage.getItem('adminToken')
-      const response = await fetch(`/api/admin/domains/${params.id}`, {
+      const response = await fetch(`/api/admin/domains/${domain?.id}`, {
         method: 'DELETE',
         headers: {
           'Authorization': `Bearer ${token}`
@@ -145,10 +161,12 @@ export default function AdminDomainDetailPage({ params }: { params: { id: string
     return (
       <div className="min-h-screen bg-gray-50 p-8">
         <div className="max-w-6xl mx-auto">
-          <div className="text-center">Domain not found</div>
-          <Link href="/admin/domains" className="text-blue-600 hover:text-blue-800">
-            ← Back to domains
-          </Link>
+          <div className="text-center">
+            <p className="text-gray-600 mb-4">Domain not found: {domainIdentifier}</p>
+            <Link href="/admin/domains" className="text-blue-600 hover:text-blue-800">
+              ← Back to domains
+            </Link>
+          </div>
         </div>
       </div>
     )

@@ -1,3 +1,4 @@
+// app/admin/layout.tsx - Updated with SettingsProvider
 'use client'
 import { useState, useEffect } from 'react'
 import { useRouter, usePathname } from 'next/navigation'
@@ -5,6 +6,7 @@ import AdminSidebar from '@/components/admin/AdminSidebar'
 import AdminHeader from '@/components/admin/AdminHeader'
 import { AdminAuthProvider } from '@/contexts/AdminAuthContext'
 import { AdminDataProvider } from '@/contexts/AdminDataContext'
+import { SettingsProvider } from '@/contexts/SettingsContext'
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const [sidebarOpen, setSidebarOpen] = useState(false)
@@ -41,9 +43,11 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     return (
       <AdminAuthProvider>
         <AdminDataProvider>
-          <div className="min-h-screen bg-gray-50">
-            {children}
-          </div>
+          <SettingsProvider>
+            <div className="min-h-screen bg-gray-50">
+              {children}
+            </div>
+          </SettingsProvider>
         </AdminDataProvider>
       </AdminAuthProvider>
     )
@@ -53,13 +57,15 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   return (
     <AdminAuthProvider>
       <AdminDataProvider>
-        <div className="min-h-screen bg-gray-50 flex">
-          <AdminSidebar sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} />
-          <div className={`flex-1 lg:ml-64 transition-all duration-300`}>
-            <AdminHeader sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} />
-            <main className="p-6">{children}</main>
+        <SettingsProvider>
+          <div className="min-h-screen bg-gray-50 flex">
+            <AdminSidebar sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} />
+            <div className={`flex-1 lg:ml-64 transition-all duration-300`}>
+              <AdminHeader sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} />
+              <main className="p-6">{children}</main>
+            </div>
           </div>
-        </div>
+        </SettingsProvider>
       </AdminDataProvider>
     </AdminAuthProvider>
   )

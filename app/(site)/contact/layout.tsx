@@ -1,17 +1,12 @@
-// app/(site)/layout.tsx - For home page "/"
+// app/(site)/contact/layout.tsx
 import { Metadata } from 'next'
-import Navbar from '@/components/Navbar'
-import Footer from '@/components/Footer'
-import SiteProviders from './SiteProviders'
 import { executeQuery } from '@/lib/mysql-db'
-import Head from 'next/head'
-
 
 export async function generateMetadata(): Promise<Metadata> {
   try {
     const rows = await executeQuery(
       'SELECT * FROM seo_settings WHERE page_name = ?',
-      ['/']
+      ['/contact']
     ) as any[]
 
     if (rows && rows.length > 0) {
@@ -24,27 +19,19 @@ export async function generateMetadata(): Promise<Metadata> {
       }
     }
   } catch (error) {
-    console.error('❌ Home page SEO error:', error)
+    console.error('❌ Contact page SEO error:', error)
   }
 
   return {
-    title: 'Domain Marketplace - Buy & Sell Premium Domains',
-    description: 'Buy and sell premium domains',
-  
+    title: 'Contact Us - Domain Marketplace',
+    description: 'Get in touch with us',
   }
-
 }
 
-export default function SiteLayout({ 
+export default function ContactLayout({ 
   children 
 }: { 
   children: React.ReactNode 
 }) {
-  return <>
-  <SiteProviders>
-        <Navbar />
-  {children}
-          <Footer />
-      </SiteProviders>
-  </>
+  return <>{children}</>
 }

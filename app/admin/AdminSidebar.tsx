@@ -16,8 +16,6 @@ export default function AdminSidebar({ sidebarOpen, setSidebarOpen }: AdminSideb
     { name: 'Enquiries', href: '/admin/enquiries', icon: '📧' },
     { name: 'Orders', href: '/admin/orders', icon: '📦' },
     { name: 'Users', href: '/admin/users', icon: '👥' },
-    { name: 'Categories', href: '/admin/categories', icon: '🏷️' },
-    { name: 'Tags', href: '/admin/tags', icon: '🏷️' },
     { name: 'CMS', href: '/admin/cms', icon: '📝' },
     { name: 'SEO', href: '/admin/seo', icon: '🔍' },
     { name: 'Logs', href: '/admin/logs', icon: '📋' },

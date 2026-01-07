@@ -1,32 +1,64 @@
-// /app/admin/domains/add/page.tsx - FIXED TO SHOW FORM AND CSV IMPORT
+// File: /app/admin/domains/add/page.tsx - COMPLETE UPDATE
+
 'use client'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
+
+interface Category {
+  id: number
+  name: string
+  domainCount: number
+}
 
 export default function AddDomainPage() {
   const router = useRouter()
   const [loading, setLoading] = useState(false)
   const [csvLoading, setCsvLoading] = useState(false)
   const [csvFile, setCsvFile] = useState<File | null>(null)
+  const [categories, setCategories] = useState<Category[]>([])
+  const [showCategoryModal, setShowCategoryModal] = useState(false)
+  const [newCategoryName, setNewCategoryName] = useState('')
 
   // Single domain form state
   const [formData, setFormData] = useState({
     name: '',
-    category: 'Technology',
+    category: '',
     price: '',
     status: 'available',
     description: '',
     tags: ''
   })
 
-  const categories = [
-    'Technology', 'Business', 'E-commerce', 'Finance', 'Health', 
-    'Education', 'Real Estate', 'Fashion', 'Food', 'Entertainment',
-    'Sports', 'Travel', 'Automotive', 'Marketing', 'Consulting'
-  ]
-
   const statuses = ['available', 'sold', 'auction', 'pending']
+
+  // Fetch categories with domain counts
+  useEffect(() => {
+    fetchCategoriesWithCounts()
+  }, [])
+
+  const fetchCategoriesWithCounts = async () => {
+    try {
+      const token = localStorage.getItem('adminToken')
+      const response = await fetch('/api/admin/categories-with-counts', {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      })
+      
+      const data = await response.json()
+      if (data.success) {
+        setCategories(data.categories || [])
+        // Set default category if available
+        if (data.categories && data.categories.length > 0 && !formData.category) {
+          setFormData(prev => ({ ...prev, category: data.categories[0].name }))
+        }
+      }
+    } catch (error) {
+      console.error('Error fetching categories:', error)
+    }
+  }
 
   // CSV Template Download
   const downloadCSVTemplate = () => {
@@ -45,13 +77,42 @@ brand.co,Marketing,1500,available,Brandable marketing domain,brand marketing`
     window.URL.revokeObjectURL(url)
   }
 
+  // Add new category
+  const handleAddCategory = async () => {
+    if (!newCategoryName.trim()) return
+    
+    try {
+      const token = localStorage.getItem('adminToken')
+      const response = await fetch('/api/admin/categories', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          name: newCategoryName.trim(),
+          description: ''
+        })
+      })
+      
+      if (response.ok) {
+        fetchCategoriesWithCounts()
+        setNewCategoryName('')
+        setShowCategoryModal(false)
+        alert('Category added successfully!')
+      }
+    } catch (error) {
+      console.error('Error adding category:', error)
+      alert('Failed to add category')
+    }
+  }
+
   // Single Domain Submit
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setLoading(true)
 
     try {
-      console.log('Submitting single domain:', formData)
       const token = localStorage.getItem('adminToken')
       
       const response = await fetch('/api/admin/domains', {
@@ -67,7 +128,6 @@ brand.co,Marketing,1500,available,Brandable marketing domain,brand marketing`
       })
 
       const data = await response.json()
-      console.log('Add domain response:', data)
       
       if (data.success) {
         alert('Domain added successfully!')
@@ -92,8 +152,6 @@ brand.co,Marketing,1500,available,Brandable marketing domain,brand marketing`
     setCsvLoading(true)
 
     try {
-      console.log('Uploading CSV file:', file.name)
-      
       const formData = new FormData()
       formData.append('file', file)
 
@@ -107,10 +165,9 @@ brand.co,Marketing,1500,available,Brandable marketing domain,brand marketing`
       })
 
       const data = await response.json()
-      console.log('CSV import response:', data)
       
       if (data.success) {
-        alert(`CSV imported successfully! ${data.imported} domains added, ${data.failed} failed.`)
+        alert(`CSV imported successfully! ${data.imported} domains added, ${data.autoCreatedCategories} categories auto-created.`)
         if (data.imported > 0) {
           router.push('/admin/domains')
         }
@@ -146,7 +203,7 @@ brand.co,Marketing,1500,available,Brandable marketing domain,brand marketing`
           </Link>
         </div>
 
-        {/* CSV Import Section - MOVED TO TOP AND FIXED */}
+        {/* CSV Import Section */}
         <div className="bg-gradient-to-r from-blue-50 to-indigo-50 p-6 rounded-lg shadow-sm border border-blue-200 mb-8">
           <h2 className="text-xl font-semibold text-gray-900 mb-4 flex items-center">
             <span className="mr-2">📊</span>
@@ -191,7 +248,7 @@ brand.co,Marketing,1500,available,Brandable marketing domain,brand marketing`
           )}
         </div>
 
-        {/* Single Domain Form - FIXED TO ALWAYS SHOW */}
+        {/* Single Domain Form */}
         <div className="bg-white p-8 rounded-lg shadow-sm border">
           <h2 className="text-xl font-semibold text-gray-900 mb-6 flex items-center">
             <span className="mr-2">➕</span>
@@ -236,17 +293,29 @@ brand.co,Marketing,1500,available,Brandable marketing domain,brand marketing`
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   Category *
                 </label>
-                <select
-                  name="category"
-                  value={formData.category}
-                  onChange={handleChange}
-                  required
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                >
-                  {categories.map(category => (
-                    <option key={category} value={category}>{category}</option>
-                  ))}
-                </select>
+                <div className="flex gap-2">
+                  <select
+                    name="category"
+                    value={formData.category}
+                    onChange={handleChange}
+                    required
+                    className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option value="">Select Category</option>
+                    {categories.map((cat) => (
+                      <option key={cat.id} value={cat.name}>
+                        {cat.name} ({cat.domainCount} domains)
+                      </option>
+                    ))}
+                  </select>
+                  <button
+                    type="button"
+                    onClick={() => setShowCategoryModal(true)}
+                    className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition text-sm"
+                  >
+                    + Add
+                  </button>
+                </div>
               </div>
 
               <div>
@@ -311,6 +380,36 @@ brand.co,Marketing,1500,available,Brandable marketing domain,brand marketing`
             </div>
           </form>
         </div>
+
+        {/* Add Category Modal */}
+        {showCategoryModal && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
+              <h2 className="text-lg font-medium mb-4">Add New Category</h2>
+              <input
+                type="text"
+                value={newCategoryName}
+                onChange={(e) => setNewCategoryName(e.target.value)}
+                placeholder="Category name"
+                className="w-full px-3 py-2 border border-gray-300 rounded-md mb-4"
+              />
+              <div className="flex justify-end space-x-3">
+                <button
+                  onClick={() => setShowCategoryModal(false)}
+                  className="px-4 py-2 text-gray-700 border border-gray-300 rounded-md hover:bg-gray-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleAddCategory}
+                  className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
+                >
+                  Add Category
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   )

@@ -1,9 +1,20 @@
-// /app/cart/page.tsx - ADVANCED CART LIKE DEMO
+// File: /app/(site)/cart/page.tsx - FIXED WITH NULL CHECKS
+
 'use client'
 import { useState, useEffect } from 'react'
 import { useCart } from '@/contexts/CartContext'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
+
+interface CartItem {
+  cartId: number
+  id: number
+  name: string
+  price: number | null
+  years?: number
+  category?: string
+  extension?: string
+}
 
 export default function CartPage() {
   const { cart, removeFromCart, getCartTotal, updateItemYears } = useCart()
@@ -38,6 +49,18 @@ export default function CartPage() {
     for (const item of cart) {
       await removeFromCart(item.cartId)
     }
+  }
+
+  // Helper function to safely get price with fallback
+  const getSafePrice = (price: number | null | undefined): number => {
+    return price ?? 0
+  }
+
+  // Helper function to safely calculate total price
+  const calculateTotalPrice = (item: CartItem): number => {
+    const price = getSafePrice(item.price)
+    const years = item.years ?? 1
+    return price * years
   }
 
   if (loading) {
@@ -94,42 +117,56 @@ export default function CartPage() {
                 </div>
                 
                 <div className="divide-y">
-                  {cart.map((item) => (
-                    <div key={item.cartId} className="p-6">
-                      <div className="flex items-start justify-between">
-                        <div className="flex-1">
-                          <h3 className="font-semibold text-lg text-gray-900">{item.name}</h3>
-                          <p className="text-sm text-gray-600 mb-2">Category: {item.category}</p>
-                          <p className="text-sm text-gray-500">{item.extension}</p>
+                  {cart.map((item) => {
+                    const safePrice = getSafePrice(item.price)
+                    const totalPrice = calculateTotalPrice(item)
+                    const years = item.years ?? 1
+                    
+                    return (
+                      <div key={item.cartId} className="p-6">
+                        <div className="flex items-start justify-between">
+                          <div className="flex-1">
+                            <h3 className="font-semibold text-lg text-gray-900">{item.name}</h3>
+                            <p className="text-sm text-gray-600 mb-2">
+                              Category: {item.category || 'Uncategorized'}
+                            </p>
+                            <p className="text-sm text-gray-500">{item.extension}</p>
+                            
+                            {/* Years Selection */}
+                            <div className="mt-3">
+                              <label className="block text-sm font-medium text-gray-700 mb-1">
+                                Registration Period
+                              </label>
+                              <select 
+                                value={years}
+                                onChange={(e) => handleYearsChange(item.cartId, parseInt(e.target.value))}
+                                className="border border-gray-300 rounded px-3 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                              >
+                                <option value={1}>1 Year</option>
+                                <option value={2}>2 Years</option>
+                                <option value={3}>3 Years</option>
+                              </select>
+                            </div>
+                          </div>
                           
-                          {/* Years Selection */}
-                          <div className="mt-3">
-                            <label className="block text-sm font-medium text-gray-700 mb-1">Registration Period</label>
-                            <select 
-                              value={item.years || 1}
-                              onChange={(e) => handleYearsChange(item.cartId, parseInt(e.target.value))}
-                              className="border border-gray-300 rounded px-3 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          <div className="text-right ml-4">
+                            <p className="text-xl font-bold text-gray-800">
+                              ${totalPrice.toLocaleString()}
+                            </p>
+                            <p className="text-sm text-gray-500">
+                              (${safePrice.toLocaleString()}/year)
+                            </p>
+                            <button
+                              onClick={() => handleRemoveItem(item.cartId)}
+                              className="text-red-600 hover:text-red-800 mt-2 text-sm"
                             >
-                              <option value={1}>1 Year</option>
-                              <option value={2}>2 Years</option>
-                              <option value={3}>3 Years</option>
-                            </select>
+                              Remove
+                            </button>
                           </div>
                         </div>
-                        
-                        <div className="text-right ml-4">
-                          <p className="text-xl font-bold text-gray-800">${(item.price * (item.years || 1)).toLocaleString()}</p>
-                          <p className="text-sm text-gray-500">(${item.price.toLocaleString()}/year)</p>
-                          <button
-                            onClick={() => handleRemoveItem(item.cartId)}
-                            className="text-red-600 hover:text-red-800 mt-2 text-sm"
-                          >
-                            Remove
-                          </button>
-                        </div>
                       </div>
-                    </div>
-                  ))}
+                    )
+                  })}
                 </div>
               </div>
             </div>

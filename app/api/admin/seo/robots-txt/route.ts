@@ -1,82 +1,70 @@
+// app/api/admin/seo/robots-txt/route.ts - FIXED VERSION
 import { NextRequest, NextResponse } from 'next/server'
 import { executeQuery } from '@/lib/mysql-db'
 
-// Helper to get admin from token
-async function getAdminFromRequest(request: NextRequest) {
-  const authHeader = request.headers.get('authorization')
-  if (!authHeader || !authHeader.startsWith('Bearer ')) {
-    return null
-  }
-
-  const token = authHeader.substring(7)
-  const users = await executeQuery(
-    'SELECT id, email, name, role FROM users WHERE email = ? AND role = ?',
-    ['admin@example.com', 'admin']
-  ) as any[]
-
-  return users.length > 0 ? users[0] : null
-}
-
-export async function POST(request: NextRequest) {
+// GET - Fetch robots.txt content
+export async function GET() {
   try {
-    const admin = await getAdminFromRequest(request)
-    if (!admin) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
+    // Check if table exists, if not create it
+    await executeQuery(`
+      CREATE TABLE IF NOT EXISTS robots_txt (
+        id INT PRIMARY KEY AUTO_INCREMENT,
+        content TEXT NOT NULL,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+      )
+    `)
 
-    const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://yourdomain.com'
-
-    // Default robots.txt content
-    const robotsContent = `User-agent: *
+    // Insert default if not exists
+    await executeQuery(`
+      INSERT IGNORE INTO robots_txt (id, content) VALUES (1, ?)
+    `, [`# Default robots.txt
+User-agent: *
 Allow: /
-
-# Block admin and API routes
 Disallow: /admin/
 Disallow: /api/
-Disallow: /private/
-Disallow: /dashboard/
+Sitemap: ${process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'}/sitemap.xml`])
 
-# Block specific file types
-Disallow: /*.pdf$
-Disallow: /*.doc$
-Disallow: /*.xls$
-
-# Sitemap location
-Sitemap: ${baseUrl}/sitemap.xml
-
-# Crawl delay for bots
-Crawl-delay: 1
-
-# Additional rules for specific bots
-User-agent: Googlebot
+    const [rows] = await executeQuery('SELECT content FROM robots_txt LIMIT 1') as any[]
+    const content = rows?.[0]?.content || `# Default robots.txt
+User-agent: *
 Allow: /
+Disallow: /admin/
+Disallow: /api/
+Sitemap: ${process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'}/sitemap.xml`
 
-User-agent: Bingbot
-Allow: /
-
-User-agent: ia_archiver
-Disallow: /
-
-User-agent: mj12bot
-Disallow: /`
-
-    // Save robots.txt to database
-    await executeQuery(
-      `INSERT INTO seo_settings (page, title, description, structured_data, last_modified) 
-       VALUES ('robots.txt', 'Robots.txt', 'Robots.txt file for search engine crawling', ?, NOW())
-       ON DUPLICATE KEY UPDATE 
-       structured_data = ?, 
-       last_modified = NOW()`,
-      [robotsContent, robotsContent]
-    )
-
-    return NextResponse.json({
-      success: true,
-      message: 'Robots.txt generated successfully'
-    })
-
+    return NextResponse.json({ success: true, content })
   } catch (error) {
-    console.error('Generate robots.txt error:', error)
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+    return NextResponse.json({ success: false, error: error.message }, { status: 500 })
+  }
+}
+
+// POST - Update robots.txt content
+export async function POST(request: NextRequest) {
+  try {
+    const body = await request.json()
+    const { content } = body
+
+    if (content === undefined) {
+      return NextResponse.json({ success: false, error: 'Content required' }, { status: 400 })
+    }
+
+    // Ensure table exists
+    await executeQuery(`
+      CREATE TABLE IF NOT EXISTS robots_txt (
+        id INT PRIMARY KEY AUTO_INCREMENT,
+        content TEXT NOT NULL,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+      )
+    `)
+
+    // Update or insert content
+    await executeQuery(`
+      INSERT INTO robots_txt (id, content) VALUES (1, ?)
+      ON DUPLICATE KEY UPDATE content = ?
+    `, [content, content])
+
+    return NextResponse.json({ success: true })
+  } catch (error) {
+    return NextResponse.json({ success: false, error: error.message }, { status: 500 })
   }
 }

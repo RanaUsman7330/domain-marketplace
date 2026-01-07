@@ -1,6 +1,6 @@
-// /components/admin/EnquiryDetailModal.tsx - Complete enquiry details modal
+// components/admin/EnquiryDetailModal.tsx
 'use client'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 
 interface Enquiry {
   id: number
@@ -9,11 +9,10 @@ interface Enquiry {
   subject: string
   message: string
   type: string
-  status: string
+  status: 'new' | 'read' | 'replied' | 'closed'
   domain_id?: number
   domain_name?: string
-  domain_price?: number
-  domain_description?: string
+  domain?: string
   created_at: string
   updated_at: string
 }
@@ -26,203 +25,270 @@ interface EnquiryDetailModalProps {
 }
 
 export default function EnquiryDetailModal({ enquiry, isOpen, onClose, onStatusUpdate }: EnquiryDetailModalProps) {
-  const [statusLoading, setStatusLoading] = useState(false)
-  const [replyMessage, setReplyMessage] = useState('')
+  const [status, setStatus] = useState(enquiry?.status || 'new')
+  const [isUpdating, setIsUpdating] = useState(false)
 
-  if (!enquiry || !isOpen) return null
+  useEffect(() => {
+    if (enquiry) {
+      setStatus(enquiry.status)
+    }
+  }, [enquiry])
+
+  if (!isOpen || !enquiry) return null
 
   const handleStatusUpdate = async (newStatus: string) => {
-    setStatusLoading(true)
+    setIsUpdating(true)
     try {
       await onStatusUpdate(enquiry.id, newStatus)
+      setStatus(newStatus)
     } catch (error) {
-      console.error('Status update error:', error)
+      console.error('Error updating status:', error)
     } finally {
-      setStatusLoading(false)
+      setIsUpdating(false)
     }
   }
 
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'new': return 'bg-green-100 text-green-800'
-      case 'read': return 'bg-blue-100 text-blue-800'
-      case 'replied': return 'bg-yellow-100 text-yellow-800'
-      case 'closed': return 'bg-gray-100 text-gray-800'
-      default: return 'bg-gray-100 text-gray-800'
+  const parseMessage = (message: string) => {
+    const lines = message.split('\n').filter(line => line.trim())
+    const parsed: any = {
+      originalMessage: '',
+      inquiryType: '',
+      company: '',
+      phone: ''
     }
+
+    lines.forEach(line => {
+      const trimmed = line.trim()
+      if (trimmed.startsWith('Inquiry Type:')) {
+        parsed.inquiryType = trimmed.replace('Inquiry Type:', '').trim()
+      } else if (trimmed.startsWith('Company:')) {
+        parsed.company = trimmed.replace('Company:', '').trim()
+      } else if (trimmed.startsWith('Phone:')) {
+        parsed.phone = trimmed.replace('Phone:', '').trim()
+      } else if (trimmed && !parsed.inquiryType) {
+        parsed.originalMessage = trimmed
+      }
+    })
+
+    return parsed
   }
 
-  const getTypeColor = (type: string) => {
-    switch (type) {
-      case 'general': return 'bg-blue-100 text-blue-800'
-      case 'domain': return 'bg-purple-100 text-purple-800'
-      case 'support': return 'bg-red-100 text-red-800'
-      case 'partnership': return 'bg-green-100 text-green-800'
-      default: return 'bg-gray-100 text-gray-800'
-    }
+  const parsedMessage = parseMessage(enquiry.message)
+  const statusColors = {
+    new: 'bg-green-100 text-green-800',
+    read: 'bg-blue-100 text-blue-800',
+    replied: 'bg-yellow-100 text-yellow-800',
+    closed: 'bg-gray-100 text-gray-800'
   }
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-lg shadow-xl max-w-4xl w-full max-h-[90vh] overflow-y-auto">
+      <div className="bg-white rounded-lg shadow-xl max-w-4xl w-full max-h-[90vh] overflow-hidden">
         {/* Header */}
-        <div className="flex justify-between items-center p-6 border-b">
-          <h2 className="text-2xl font-bold text-gray-900">Enquiry Details</h2>
-          <button 
-            onClick={onClose}
-            className="text-gray-400 hover:text-gray-600 text-2xl"
-          >
-            ×
-          </button>
+        <div className="bg-gradient-to-r from-blue-600 to-purple-600 text-white p-6">
+          <div className="flex justify-between items-start">
+            <div>
+              <h2 className="text-2xl font-bold">Enquiry Details</h2>
+              <p className="text-blue-100 mt-1">Complete information about this enquiry</p>
+            </div>
+            <button
+              onClick={onClose}
+              className="text-white hover:text-gray-200 text-2xl font-bold"
+            >
+              ×
+            </button>
+          </div>
         </div>
 
-        {/* Content */}
-        <div className="p-6">
-          {/* Enquiry Header */}
-          <div className="mb-6">
-            <div className="flex items-center space-x-3 mb-4">
-              <h3 className="text-xl font-semibold text-gray-900">{enquiry.subject}</h3>
-              <span className={`inline-flex px-3 py-1 text-sm font-semibold rounded-full ${getStatusColor(enquiry.status)}`}>
-                {enquiry.status.charAt(0).toUpperCase() + enquiry.status.slice(1)}
-              </span>
-              <span className={`inline-flex px-3 py-1 text-sm font-semibold rounded-full ${getTypeColor(enquiry.type)}`}>
-                {enquiry.type.charAt(0).toUpperCase() + enquiry.type.slice(1)}
-              </span>
-            </div>
-            
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
-              <div>
-                <p className="text-gray-600">From</p>
-                <p className="font-medium">{enquiry.name}</p>
-                <p className="text-gray-500">{enquiry.email}</p>
+        <div className="p-6 overflow-y-auto max-h-[calc(90vh-120px)]">
+          {/* Basic Information */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+            <div className="bg-gray-50 p-4 rounded-lg">
+              <h3 className="text-lg font-semibold text-gray-800 mb-3 flex items-center">
+                <span className="bg-blue-100 text-blue-600 p-2 rounded-full mr-2">
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                  </svg>
+                </span>
+                Contact Information
+              </h3>
+              <div className="space-y-3">
+                <div>
+                  <label className="text-sm font-medium text-gray-500">Full Name</label>
+                  <p className="text-gray-900 font-medium">{enquiry.name}</p>
+                </div>
+                <div>
+                  <label className="text-sm font-medium text-gray-500">Email Address</label>
+                  <p className="text-gray-900 font-medium">
+                    <a href={`mailto:${enquiry.email}`} className="text-blue-600 hover:underline">
+                      {enquiry.email}
+                    </a>
+                  </p>
+                </div>
+                <div>
+                  <label className="text-sm font-medium text-gray-500">Phone Number</label>
+                  <p className="text-gray-900 font-medium">
+                    {parsedMessage.phone || 'Not provided'}
+                  </p>
+                </div>
               </div>
-              <div>
-                <p className="text-gray-600">Date</p>
-                <p className="font-medium">{new Date(enquiry.created_at).toLocaleString()}</p>
-                <p className="text-gray-500">Updated: {new Date(enquiry.updated_at).toLocaleString()}</p>
+            </div>
+
+            <div className="bg-gray-50 p-4 rounded-lg">
+              <h3 className="text-lg font-semibold text-gray-800 mb-3 flex items-center">
+                <span className="bg-green-100 text-green-600 p-2 rounded-full mr-2">
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                  </svg>
+                </span>
+                Enquiry Details
+              </h3>
+              <div className="space-y-3">
+                <div>
+                  <label className="text-sm font-medium text-gray-500">Subject</label>
+                  <p className="text-gray-900 font-medium">{enquiry.subject}</p>
+                </div>
+                <div>
+                  <label className="text-sm font-medium text-gray-500">Type</label>
+                  <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full bg-purple-100 text-purple-800`}>
+                    {enquiry.type}
+                  </span>
+                </div>
+                <div>
+                  <label className="text-sm font-medium text-gray-500">Company</label>
+                  <p className="text-gray-900 font-medium">
+                    {parsedMessage.company || 'Not provided'}
+                  </p>
+                </div>
+                <div>
+                  <label className="text-sm font-medium text-gray-500">Inquiry Type</label>
+                  <p className="text-gray-900 font-medium">
+                    {parsedMessage.inquiryType || 'General'}
+                  </p>
+                </div>
               </div>
             </div>
           </div>
 
           {/* Domain Information */}
-          {enquiry.domain_name && (
-            <div className="mb-6 p-4 bg-blue-50 rounded-lg">
-              <h4 className="font-semibold text-blue-900 mb-2">Related Domain</h4>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {(enquiry.domain_name || enquiry.domain) && (
+            <div className="bg-blue-50 p-4 rounded-lg mb-6">
+              <h3 className="text-lg font-semibold text-blue-800 mb-3 flex items-center">
+                <span className="bg-blue-200 text-blue-700 p-2 rounded-full mr-2">
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9" />
+                  </svg>
+                </span>
+                Domain Information
+              </h3>
+              <div className="space-y-2">
                 <div>
-                  <p className="text-sm text-blue-700">Domain Name</p>
-                  <p className="font-medium text-blue-900">{enquiry.domain_name}</p>
+                  <label className="text-sm font-medium text-blue-600">Domain</label>
+                  <p className="text-blue-900 font-medium text-lg">
+                    {enquiry.domain_name || enquiry.domain}
+                  </p>
                 </div>
-                {enquiry.domain_price && (
+                {enquiry.domain_id && (
                   <div>
-                    <p className="text-sm text-blue-700">Price</p>
-                    <p className="font-medium text-blue-900">${enquiry.domain_price.toLocaleString()}</p>
+                    <label className="text-sm font-medium text-blue-600">Domain ID</label>
+                    <p className="text-blue-900">#{enquiry.domain_id}</p>
                   </div>
                 )}
               </div>
-              {enquiry.domain_description && (
-                <div className="mt-2">
-                  <p className="text-sm text-blue-700">Description</p>
-                  <p className="text-blue-900">{enquiry.domain_description}</p>
-                </div>
-              )}
             </div>
           )}
 
-          {/* Message */}
-          <div className="mb-6">
-            <h4 className="font-semibold text-gray-900 mb-2">Message</h4>
-            <div className="p-4 bg-gray-50 rounded-lg">
-              <p className="text-gray-700 whitespace-pre-wrap">{enquiry.message}</p>
+          {/* Message Content */}
+          <div className="bg-yellow-50 p-4 rounded-lg mb-6">
+            <h3 className="text-lg font-semibold text-yellow-800 mb-3 flex items-center">
+              <span className="bg-yellow-200 text-yellow-700 p-2 rounded-full mr-2">
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+                </svg>
+              </span>
+              Message Content
+            </h3>
+            <div className="bg-white p-4 rounded-lg border border-yellow-200">
+              <p className="text-gray-800 whitespace-pre-wrap leading-relaxed">
+                {parsedMessage.originalMessage || enquiry.message}
+              </p>
             </div>
           </div>
 
-          {/* Status Update */}
-          <div className="mb-6">
-            <h4 className="font-semibold text-gray-900 mb-3">Update Status</h4>
-            <div className="flex space-x-2">
-              <button
-                onClick={() => handleStatusUpdate('read')}
-                disabled={statusLoading || enquiry.status === 'read'}
-                className={`px-4 py-2 rounded text-sm font-medium transition-colors ${
-                  enquiry.status === 'read' 
-                    ? 'bg-blue-600 text-white cursor-not-allowed' 
-                    : 'bg-blue-100 text-blue-700 hover:bg-blue-200'
-                }`}
-              >
-                {statusLoading ? 'Updating...' : 'Mark as Read'}
-              </button>
-              <button
-                onClick={() => handleStatusUpdate('replied')}
-                disabled={statusLoading || enquiry.status === 'replied'}
-                className={`px-4 py-2 rounded text-sm font-medium transition-colors ${
-                  enquiry.status === 'replied' 
-                    ? 'bg-yellow-600 text-white cursor-not-allowed' 
-                    : 'bg-yellow-100 text-yellow-700 hover:bg-yellow-200'
-                }`}
-              >
-                {statusLoading ? 'Updating...' : 'Mark as Replied'}
-              </button>
-              <button
-                onClick={() => handleStatusUpdate('closed')}
-                disabled={statusLoading || enquiry.status === 'closed'}
-                className={`px-4 py-2 rounded text-sm font-medium transition-colors ${
-                  enquiry.status === 'closed' 
-                    ? 'bg-green-600 text-white cursor-not-allowed' 
-                    : 'bg-green-100 text-green-700 hover:bg-green-200'
-                }`}
-              >
-                {statusLoading ? 'Updating...' : 'Mark as Closed'}
-              </button>
+          {/* Timeline */}
+          <div className="bg-gray-50 p-4 rounded-lg mb-6">
+            <h3 className="text-lg font-semibold text-gray-800 mb-3 flex items-center">
+              <span className="bg-gray-200 text-gray-700 p-2 rounded-full mr-2">
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+              </span>
+              Timeline
+            </h3>
+            <div className="space-y-3">
+              <div className="flex items-center space-x-3">
+                <div className="w-3 h-3 bg-blue-500 rounded-full"></div>
+                <div>
+                  <p className="font-medium text-gray-800">Enquiry Created</p>
+                  <p className="text-sm text-gray-600">{new Date(enquiry.created_at).toLocaleString()}</p>
+                </div>
+              </div>
+              <div className="flex items-center space-x-3">
+                <div className="w-3 h-3 bg-green-500 rounded-full"></div>
+                <div>
+                  <p className="font-medium text-gray-800">Last Updated</p>
+                  <p className="text-sm text-gray-600">{new Date(enquiry.updated_at).toLocaleString()}</p>
+                </div>
+              </div>
             </div>
           </div>
 
-          {/* Reply Section */}
-          <div className="mb-6">
-            <h4 className="font-semibold text-gray-900 mb-3">Send Reply</h4>
-            <textarea
-              value={replyMessage}
-              onChange={(e) => setReplyMessage(e.target.value)}
-              placeholder="Type your reply message here..."
-              className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              rows={4}
-            />
-            <div className="mt-3 flex space-x-2">
-              <button
-                onClick={() => {
-                  if (replyMessage.trim()) {
-                    // Here you would implement the reply sending logic
-                    alert(`Reply sent to ${enquiry.email}:\n\n${replyMessage}`)
-                    setReplyMessage('')
-                  } else {
-                    alert('Please type a reply message')
-                  }
-                }}
-                className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors"
-              >
-                Send Reply
-              </button>
-              <button
-                onClick={() => setReplyMessage('')}
-                className="px-4 py-2 bg-gray-300 text-gray-700 rounded hover:bg-gray-400 transition-colors"
-              >
-                Clear
-              </button>
+          {/* Status Management */}
+          <div className="bg-white border border-gray-200 rounded-lg p-4">
+            <h3 className="text-lg font-semibold text-gray-800 mb-4">Status Management</h3>
+            <div className="flex items-center justify-between">
+              <div className="flex items-center space-x-3">
+                <span className={`inline-flex px-3 py-1 text-sm font-semibold rounded-full ${statusColors[enquiry.status]}`}>
+                  {enquiry.status.charAt(0).toUpperCase() + enquiry.status.slice(1)}
+                </span>
+                <span className="text-sm text-gray-600">Current Status</span>
+              </div>
+              
+              <div className="flex space-x-2">
+                <button
+                  onClick={() => handleStatusUpdate('read')}
+                  disabled={isUpdating || enquiry.status === 'read'}
+                  className="px-3 py-1 text-sm bg-blue-100 text-blue-700 rounded-md hover:bg-blue-200 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                >
+                  Mark as Read
+                </button>
+                <button
+                  onClick={() => handleStatusUpdate('replied')}
+                  disabled={isUpdating || enquiry.status === 'replied'}
+                  className="px-3 py-1 text-sm bg-yellow-100 text-yellow-700 rounded-md hover:bg-yellow-200 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                >
+                  Mark as Replied
+                </button>
+                <button
+                  onClick={() => handleStatusUpdate('closed')}
+                  disabled={isUpdating || enquiry.status === 'closed'}
+                  className="px-3 py-1 text-sm bg-green-100 text-green-700 rounded-md hover:bg-green-200 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                >
+                  Mark as Closed
+                </button>
+              </div>
             </div>
           </div>
+        </div>
 
-          {/* Actions */}
-          <div className="flex justify-between items-center pt-4 border-t">
-            <div className="text-sm text-gray-500">
-              Enquiry ID: {enquiry.id}
-            </div>
-            <button
-              onClick={onClose}
-              className="px-4 py-2 bg-gray-300 text-gray-700 rounded hover:bg-gray-400 transition-colors"
-            >
-              Close
-            </button>
-          </div>
+        {/* Footer */}
+        <div className="bg-gray-50 px-6 py-4 border-t border-gray-200 flex justify-end">
+          <button
+            onClick={onClose}
+            className="px-4 py-2 bg-gray-600 text-white rounded-md hover:bg-gray-700 transition-colors"
+          >
+            Close
+          </button>
         </div>
       </div>
     </div>
