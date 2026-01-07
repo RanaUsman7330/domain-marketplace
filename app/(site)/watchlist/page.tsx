@@ -22,7 +22,6 @@ export default function WatchlistPage() {
   if (watchlist.length === 0) {
     return (
       <main className="min-h-screen bg-gray-50">
-        <Navbar />
         
         <section className="py-16">
           <div className="container mx-auto px-4">

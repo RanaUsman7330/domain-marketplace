@@ -1,82 +1,51 @@
-// /app/api/admin/domains/[id]/route.ts - COMPLETE FIXED VERSION
 import { NextRequest, NextResponse } from 'next/server'
 import { executeQuery } from '@/lib/mysql-db'
 
-// Helper function to get admin from token
-async function getAdminFromRequest(request: NextRequest) {
-  const authHeader = request.headers.get('authorization')
-  if (!authHeader || !authHeader.startsWith('Bearer ')) {
-    return null
-  }
-
-  const token = authHeader.substring(7)
-  
-  // For now, check if it's a valid admin token
-  const users = await executeQuery(
-    'SELECT id, email, name, role FROM users WHERE email = ? AND role = ?',
-    ['admin@example.com', 'admin']
-  ) as any[]
-
-  return users.length > 0 ? users[0] : null
-}
-
-// GET method for fetching single domain
+// GET single domain details - FIXED FOR NEXT.JS 15+
 export async function GET(
   request: NextRequest,
-  context: { params: Promise<{ id: string }> }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    console.log('GET single domain API called')
-    
-    const admin = await getAdminFromRequest(request)
-    if (!admin) {
-      console.log('Unauthorized GET attempt')
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
-
-    const { id } = await context.params
-    console.log('Domain ID from params:', id)
-    
+    const { id } = await params
     const domainId = parseInt(id, 10)
 
     if (isNaN(domainId)) {
-      console.log('Invalid domain ID:', id)
-      return NextResponse.json({ 
-        success: false, 
-        error: 'Invalid domain ID' 
+      return NextResponse.json({
+        success: false,
+        error: 'Invalid domain ID'
       }, { status: 400 })
     }
 
-    console.log('Fetching domain with ID:', domainId)
-
-    // Get domain details - FIXED COLUMNS
+    // Get domain with SEO fields
     const domains = await executeQuery(`
       SELECT 
-        id,
-        name,
-        price,
-        description,
-        category,
-        status,
-        created_at as createdAt,
-        updated_at as updatedAt,
-        tags,
-        views,
-        offers
-      FROM domains 
-      WHERE id = ?
+        d.id,
+        d.name,
+        COALESCE(c.name, d.category, 'Uncategorized') as category,
+        d.price,
+        d.status,
+        d.description,
+        d.tags,
+        COALESCE(d.views, 0) as views,
+        COALESCE(d.offers, 0) as offers,
+        DATE_FORMAT(d.created_at, '%Y-%m-%d') as created_at,
+        DATE_FORMAT(d.updated_at, '%Y-%m-%d') as updated_at,
+        SUBSTRING_INDEX(d.name, '.', -1) as extension,
+        CHAR_LENGTH(SUBSTRING_INDEX(d.name, '.', 1)) as length,
+        d.meta_title,
+        d.meta_description,
+        d.meta_keywords,
+        d.seo_tags
+      FROM domains d
+      LEFT JOIN domain_categories dc ON d.id = dc.domain_id
+      LEFT JOIN categories c ON dc.category_id = c.id
+      WHERE d.id = ?
       LIMIT 1
     `, [domainId])
 
-    console.log('Query result:', domains)
-
     if (!domains || domains.length === 0) {
-      console.log('Domain not found with ID:', domainId)
-      return NextResponse.json({ 
-        success: false, 
-        error: 'Domain not found',
-        debug: { searchedId: domainId }
-      }, { status: 404 })
+      return NextResponse.json({ error: 'Domain not found' }, { status: 404 })
     }
 
     return NextResponse.json({
@@ -85,132 +54,113 @@ export async function GET(
     })
 
   } catch (error) {
-    console.error('Admin domain detail API error:', error)
-    return NextResponse.json({ 
-      success: false, 
-      error: 'Failed to load domain details',
-      debug: error.message 
-    }, { status: 500 })
+    console.error('Error fetching domain:', error)
+    return NextResponse.json(
+      { 
+        success: false, 
+        error: 'Failed to fetch domain',
+        message: error instanceof Error ? error.message : 'Unknown error'
+      },
+      { status: 500 }
+    )
   }
 }
 
-// PUT method for updating domain
+// PUT update domain - FIXED FOR NEXT.JS 15+
 export async function PUT(
   request: NextRequest,
-  context: { params: Promise<{ id: string }> }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    console.log('PUT domain API called')
-    
-    const admin = await getAdminFromRequest(request)
-    if (!admin) {
-      console.log('Unauthorized PUT attempt')
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
-
-    const { id } = await context.params
+    const { id } = await params
     const domainId = parseInt(id, 10)
-
-    if (isNaN(domainId)) {
-      console.log('Invalid domain ID:', id)
-      return NextResponse.json({ 
-        success: false, 
-        error: 'Invalid domain ID' 
-      }, { status: 400 })
-    }
-
     const body = await request.json()
-    const { name, category, price, status, description, tags } = body
+    const { 
+      name, 
+      category, 
+      price, 
+      status, 
+      description, 
+      tags,
+      meta_title,
+      meta_description,
+      meta_keywords,
+      seo_tags 
+    } = body
 
-    // Update domain
-    const result = await executeQuery(
-      'UPDATE domains SET name = ?, category = ?, price = ?, status = ?, description = ?, tags = ?, updated_at = NOW() WHERE id = ?',
-      [name, category, parseFloat(price), status, description || '', tags || '', domainId]
-    ) as any
+    // Update domain with SEO fields
+    await executeQuery(`
+      UPDATE domains 
+      SET 
+        name = ?,
+        category = ?,
+        price = ?,
+        status = ?,
+        description = ?,
+        tags = ?,
+        meta_title = ?,
+        meta_description = ?,
+        meta_keywords = ?,
+        seo_tags = ?,
+        updated_at = NOW()
+      WHERE id = ?
+    `, [
+      name, category, parseFloat(price), status, description || '', tags || '',
+      meta_title || '', meta_description || '', meta_keywords || '', seo_tags || '',
+      domainId
+    ])
 
-    if (result.affectedRows === 0) {
-      console.log('Domain not found for update:', domainId)
-      return NextResponse.json({ 
-        success: false, 
-        error: 'Domain not found' 
-      }, { status: 404 })
-    }
-
-    console.log('Domain updated successfully:', domainId)
-    
     return NextResponse.json({
       success: true,
       message: 'Domain updated successfully'
     })
 
   } catch (error) {
-    console.error('Admin update domain API error:', error)
-    return NextResponse.json({ 
-      success: false, 
-      error: 'Failed to update domain',
-      debug: error.message 
-    }, { status: 500 })
+    console.error('Error updating domain:', error)
+    return NextResponse.json(
+      { 
+        success: false, 
+        error: 'Failed to update domain',
+        message: error instanceof Error ? error.message : 'Unknown error'
+      },
+      { status: 500 }
+    )
   }
 }
 
-// DELETE method for deleting domain
+// DELETE domain - FIXED FOR NEXT.JS 15+
 export async function DELETE(
   request: NextRequest,
-  context: { params: Promise<{ id: string }> }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    console.log('DELETE API called for domain')
-    
-    const admin = await getAdminFromRequest(request)
-    if (!admin) {
-      console.log('Unauthorized DELETE attempt')
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
-
-    const { id } = await context.params
-    console.log('Domain ID from params:', id)
-    
+    const { id } = await params
     const domainId = parseInt(id, 10)
 
     if (isNaN(domainId)) {
-      console.log('Invalid domain ID:', id)
-      return NextResponse.json({ 
-        success: false, 
-        error: 'Invalid domain ID' 
+      return NextResponse.json({
+        success: false,
+        error: 'Invalid domain ID'
       }, { status: 400 })
     }
 
-    console.log('Attempting to delete domain ID:', domainId)
-
     // Delete domain
-    const result = await executeQuery(
-      'DELETE FROM domains WHERE id = ?',
-      [domainId]
-    ) as any
+    await executeQuery('DELETE FROM domains WHERE id = ?', [domainId])
 
-    console.log('Delete result:', result)
-
-    if (result.affectedRows === 0) {
-      console.log('Domain not found for ID:', domainId)
-      return NextResponse.json({ 
-        success: false, 
-        error: 'Domain not found' 
-      }, { status: 404 })
-    }
-
-    console.log('Domain deleted successfully:', domainId)
-    
     return NextResponse.json({
       success: true,
       message: 'Domain deleted successfully'
     })
 
   } catch (error) {
-    console.error('Admin delete domain API error:', error)
-    return NextResponse.json({ 
-      success: false, 
-      error: 'Failed to delete domain',
-      debug: error.message 
-    }, { status: 500 })
+    console.error('Error deleting domain:', error)
+    return NextResponse.json(
+      { 
+        success: false, 
+        error: 'Failed to delete domain',
+        message: error instanceof Error ? error.message : 'Unknown error'
+      },
+      { status: 500 }
+    )
   }
 }

@@ -275,7 +275,7 @@ export default function AdminDomainsPage() {
                           {domain.name}
                         </Link>
                         <div className="text-sm text-gray-500">
-                          {domain.extension}
+                          {domain.name.split('.').pop()?.toLowerCase() || 'com'}
                         </div>
                       </div>
                     </td>
